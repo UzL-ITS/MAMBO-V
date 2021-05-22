@@ -36,6 +36,13 @@
   #define AT_MINSIGSTKSZ 51
 #endif
 
+#ifdef MODULE_ONLY
+  uintptr_t page_size;
+  dbm_global global_data;
+  #define notify_vm_op(...) debug("notify_vm_op() replaced\n")
+  #define dbm_client_entry(...) debug("dbm_client_entry() replaced\n")
+#endif
+
 #define DEBUG 1
 #undef DEBUG
 #ifdef DEBUG
@@ -404,6 +411,8 @@ void elf_run(uintptr_t entry_address, char *filename, int argc, char **argv, cha
         #ifdef __arm__
           #define auxv_type "%d"
         #elif __aarch64__
+          #define auxv_type "%ld"
+        #elif DBM_ARCH_RISCV64
           #define auxv_type "%ld"
         #endif
         printf("Unhandled auxv entry type: " auxv_type "\n", s_aux->a_type);

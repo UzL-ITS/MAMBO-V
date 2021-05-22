@@ -8,9 +8,14 @@ ifeq ($(ARCH),aarch64)
 	PIE_ENCODER = ../pie/pie-a64-encoder.o
 	PIE_DECODER = ../pie/pie-a64-decoder.o
 endif
+ifeq ($(ARCH),riscv64)
+	PIE_ENCODER = ../pie/pie-riscv-encoder.o
+	PIE_DECODER = ../pie/pie-riscv-decoder.o
+	OPTS+=-DDBM_ARCH_RISCV64
+endif
 
 CFLAGS+=-std=gnu99
-LDFLAGS+=-lpthread
+LDFLAGS+=-lelf -lz -lpthread
 
 .PHONY: clean
 
@@ -32,5 +37,8 @@ signals: $(PIE_ENCODER) signals.c signals.S
 load_store: $(PIE_ENCODER) $(PIE_DECODER) load_store.c load_store.S
 	$(CC) -g $(CFLAGS) $^ $(LDFLAGS) -o $@
 
+test_elf_loader: $(PIE_ENCODER) $(PIE_DECODER) ../elf/elf_loader.c test_elf_loader.c
+	$(CC) -g $(CFLAGS) $^ $(LDFLAGS) $(OPTS) -DMODULE_ONLY -o $@
+
 clean:
-	rm -f mmap_munmap mprotect_exec self_modifying signals hw_div load_store
+	rm -f mmap_munmap mprotect_exec self_modifying signals hw_div load_store test_elf_loader

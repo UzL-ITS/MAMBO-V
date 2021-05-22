@@ -38,6 +38,15 @@
   #define ELF_GETPHDR(...) elf64_getphdr(__VA_ARGS__)
   #define ELF_AUXV_T Elf64_auxv_t
 #endif
+#ifdef DBM_ARCH_RISCV64
+  #define ELF_CLASS  ELFCLASS64
+  #define EM_MACHINE EM_RISCV
+  #define ELF_EHDR   Elf64_Ehdr
+  #define ELF_PHDR   Elf64_Phdr
+  #define ELF_GETEHDR(...) elf64_getehdr(__VA_ARGS__)
+  #define ELF_GETPHDR(...) elf64_getphdr(__VA_ARGS__)
+  #define ELF_AUXV_T Elf64_auxv_t
+#endif
 
 struct elf_loader_auxv {
   uintptr_t at_base;
