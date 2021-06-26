@@ -115,8 +115,22 @@ typedef enum {
   cond_imm_a64,
   cbz_a64,
   tbz_a64,
-  trace_exit
+  trace_exit,
 #endif // __aarch64__
+#ifdef DBM_ARCH_RISCV64
+  uncond_imm_riscv,
+  uncond_reg_riscv,
+  uncond_imm_riscv_c,
+  uncond_reg_riscv_c,
+  beqz_riscv_c,
+  bnez_riscv_c,
+  beq_riscv,
+  bne_riscv,
+  blt_riscv,
+  bge_riscv,
+  bltu_riscv,
+  bgeu_riscv
+#endif // DBM_ARCH_RISCV64
 } branch_type;
 
 typedef struct {
@@ -231,6 +245,7 @@ typedef enum {
   ARM_INST,
   THUMB_INST,
   A64_INST,
+  RISCV64_INST,
 } inst_set;
 
 typedef enum {

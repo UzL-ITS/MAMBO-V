@@ -164,6 +164,7 @@ enum reg_alt {
 #define m_xzr (1 << xzr)
 #endif
 
+#if defined(__arm__) || defined(__aarch64__)
 enum reg_portable {
   reg0 = 0,
   reg1 = 1,
@@ -281,6 +282,154 @@ void arm_cond_copy_to_reg_16bit(uint32_t **write_p, enum arm_cond_codes cond, en
 void arm_copy_to_reg_32bit(uint32_t **write_p, enum reg reg, uint32_t value);
 void arm_cond_copy_to_reg_32bit(uint32_t **write_p, enum arm_cond_codes cond, enum reg reg, uint32_t value);
 void arm_add_sub_32_bit(uint32_t **write_p, enum reg rd, enum reg rn, int value);
+#endif
+
+#ifdef DBM_ARCH_RISCV64
+/**
+ * RISC-V registers.
+ */
+enum reg {      // +--------------+
+  x0   =   0,   // | x0   (zero)  |
+  x1   =   1,   // | x1   (ra)    |
+  x2   =   2,   // | x2   (sp)    |
+  x3   =   3,   // | x3   (gp)    |
+  x4   =   4,   // | x4   (tp)    |
+  x5   =   5,   // | x5           |
+  x6   =   6,   // | x6           |
+  x7   =   7,   // | x7           |
+  x8   =   8,   // | x8   (fp)    |
+  x9   =   9,   // | x9           |
+  x10  =  10,   // | x10          |
+  x11  =  11,   // | x11          |
+  x12  =  12,   // | x12          |
+  x13  =  13,   // | x13          |
+  x14  =  14,   // | x14          |
+  x15  =  15,   // | x15          |
+  x16  =  16,   // | x16          |
+  x17  =  17,   // | x17          |
+  x18  =  18,   // | x18          |
+  x19  =  19,   // | x19          |
+  x20  =  20,   // | x20          |
+  x21  =  21,   // | x21          |
+  x22  =  22,   // | x22          |
+  x23  =  23,   // | x23          |
+  x24  =  24,   // | x24          |
+  x25  =  25,   // | x25          |
+  x26  =  26,   // | x26          |
+  x27  =  27,   // | x27          |
+  x28  =  28,   // | x28          |
+  x29  =  29,   // | x29          |
+  x30  =  30,   // | x30          |
+  x31  =  31,   // | x31          |
+  reg_invalid = 32
+};              // +--------------+
+
+/**
+ * RISC-V alternative register names (ABI names)
+ */
+enum reg_alt {
+  zero  =  x0,  /**< Hardwired Zero Register    */
+  ra    =  x1,  /**< Return Address Register    */
+  sp    =  x2,  /**< Stack Pointer              */
+  gp    =  x3,  /**< Global Pointer             */
+  tp    =  x4,  /**< Thread Pointer             */
+  fp    =  x8,  /**< Frame Pointer              */
+  c_x8  =  0,   /**< Compressed register x8/s0  */
+  c_x9  =  1,   /**< Compressed register x9/s1  */
+  c_x10 =  2,   /**< Compressed register x10/a0 */
+  c_x11 =  3,   /**< Compressed register x11/a1 */
+  c_x12 =  4,   /**< Compressed register x12/a2 */
+  c_x13 =  5,   /**< Compressed register x13/a3 */
+  c_x14 =  6,   /**< Compressed register x14/a4 */
+  c_x15 =  7,   /**< Compressed register x15/a5 */
+};
+
+#define INST_16BIT 2 /** RISC-V compressed instruction length (in bytes). */
+#define INST_32BIT 4 /** RISC-V base instruction length (in bytes). */
+
+#define m_x0 (1 << x0)
+#define m_x1 (1 << x1)
+#define m_x2 (1 << x2)
+#define m_x3 (1 << x3)
+#define m_x4 (1 << x4)
+#define m_x5 (1 << x5)
+#define m_x6 (1 << x6)
+#define m_x7 (1 << x7)
+#define m_x8 (1 << x8)
+#define m_x9 (1 << x9)
+#define m_x10 (1 << x10)
+#define m_x11 (1 << x11)
+#define m_x12 (1 << x12)
+#define m_x13 (1 << x13)
+#define m_x14 (1 << x14)
+#define m_x15 (1 << x15)
+#define m_x16 (1 << x16)
+#define m_x17 (1 << x17)
+#define m_x18 (1 << x18)
+#define m_x19 (1 << x19)
+#define m_x20 (1 << x20)
+#define m_x21 (1 << x21)
+#define m_x22 (1 << x22)
+#define m_x23 (1 << x23)
+#define m_x24 (1 << x24)
+#define m_x25 (1 << x25)
+#define m_x26 (1 << x26)
+#define m_x27 (1 << x27)
+#define m_x28 (1 << x28)
+#define m_x29 (1 << x29)
+#define m_x30 (1 << x30)
+#define m_x31 (1 << x31)
+
+#define m_zero  (1 << zero)
+#define m_ra    (1 << ra)
+#define m_sp    (1 << sp)
+#define m_gp    (1 << gp)
+#define m_tp    (1 << tp)
+#define m_fp    (1 << fp)
+
+/**
+ * Write code to copy an immediate value up to 32 bits to a register.
+ * @param write_p Pointer to the writing location.
+ * @param reg Destination register.
+ * @param value Value to store in the register (32 Bits).
+ */
+void riscv_copy_to_reg_32bits(uint16_t **write_p, enum reg reg, uint32_t value);
+
+/**
+ * Write code to copy an immediate value up to 64 bits to a register. 
+ * For values that only need 32 bit use riscv_copy_to_reg_32bits() for lower memory
+ * footprint.
+ * @param write_p Pointer to the writing location.
+ * @param reg Destination register.
+ * @param value Value to store in the register (64 Bits).
+ * @see riscv_copy_to_reg_32bits()
+ */
+void riscv_copy_to_reg_64bits(uint16_t **write_p, enum reg reg, uint64_t value);
+
+/**
+ * RISC-V condition codes.
+ */
+enum riscv_cond_codes {
+  EQ,
+  NE,
+  LT,
+  GE,
+  LTU,
+  GEU,
+  AL    /**< Always/No condition */
+};
+
+/**
+ * RISC-V conditions.
+ */
+typedef struct
+{
+  enum reg r1;                /**< Register 1 to compare with register 2. */
+  enum reg r2;                /**< Register 2 to compare with register 1. */
+  enum riscv_cond_codes cond; /**< Condition for branching. */
+} mambo_cond;
+
+#endif
 
 void init_plugin();
 
