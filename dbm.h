@@ -33,6 +33,10 @@
 #include "pie/pie-thumb-decoder.h"
 #endif
 
+#ifdef DBM_ARCH_RISCV64
+#include "scanner_public.h"
+#endif
+
 #include "common.h"
 #include "util.h"
 
@@ -120,16 +124,7 @@ typedef enum {
 #ifdef DBM_ARCH_RISCV64
   uncond_imm_riscv,
   uncond_reg_riscv,
-  uncond_imm_riscv_c,
-  uncond_reg_riscv_c,
-  beqz_riscv_c,
-  bnez_riscv_c,
-  beq_riscv,
-  bne_riscv,
-  blt_riscv,
-  bge_riscv,
-  bltu_riscv,
-  bgeu_riscv
+  cond_imm_riscv
 #endif // DBM_ARCH_RISCV64
 } branch_type;
 
@@ -157,10 +152,13 @@ typedef struct {
 #endif // __arm__
 #ifdef __aarch64__
   uint32_t *exit_branch_addr;
+  uintptr_t branch_condition;
 #endif // __arch64__
+#ifdef DBM_ARCH_RISCV64
+  mambo_cond branch_condition;
+#endif // DBM_ARCH_RISCV64
   uintptr_t branch_taken_addr;
   uintptr_t branch_skipped_addr;
-  uintptr_t branch_condition;
   uintptr_t branch_cache_status;
   uint32_t rn;
   uint32_t free_b;

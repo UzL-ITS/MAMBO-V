@@ -376,9 +376,9 @@ void riscv_branch_jump_cond(dbm_thread *thread_data, uint16_t **write_p,
 {
 	/*
 	 * 					+-------------------------------+
-	 * 					|	NOP							|	//TODO: Why?
-	 * 					|	NOP							|	//TODO: Why?
-	 * 					|								|
+	 * 					|	NOP							|	Space for lookup jump
+	 * 					|	NOP							|		inserted by dispatcher
+	 * 					|								|		(see dispatcher_riscv.c)
 	 * 					|	PUSH	x10, x11			|	(Pseudo instruction)
 	 * 					|	LI		x11, basic_block 	|	dispatcher: source_index
 	 * 					|								|
@@ -450,40 +450,26 @@ void pass1_riscv(uint16_t *read_address, branch_type *bb_type)
 			*bb_type = uncond_reg_riscv;
 			break;
 		case RISCV_C_J:
-			*bb_type = uncond_imm_riscv_c;
+			*bb_type = uncond_imm_riscv;
 			break;
 		case RISCV_C_JR:
-			*bb_type = uncond_reg_riscv_c;
+			*bb_type = uncond_reg_riscv;
 			break;
 		case RISCV_C_JAL:
-			*bb_type = uncond_imm_riscv_c;
+			*bb_type = uncond_imm_riscv;
 			break;
 		case RISCV_C_JALR:
-			*bb_type = uncond_reg_riscv_c;
+			*bb_type = uncond_reg_riscv;
 			break;
 		case RISCV_C_BEQZ:
-			*bb_type = beqz_riscv_c;
-			break;
 		case RISCV_C_BNEZ:
-			*bb_type = bnez_riscv_c;
-			break;
 		case RISCV_BEQ:
-			*bb_type = beq_riscv;
-			break;
 		case RISCV_BNE:
-			*bb_type = bne_riscv;
-			break;
 		case RISCV_BLT:
-			*bb_type = blt_riscv;
-			break;
 		case RISCV_BGE:
-			*bb_type = bge_riscv;
-			break;
 		case RISCV_BLTU:
-			*bb_type = bltu_riscv;
-			break;
 		case RISCV_BGEU:
-			*bb_type = bgeu_riscv;
+			*bb_type = cond_imm_riscv;
 			break;
 		default:
 			return;
@@ -842,7 +828,6 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 
 	if (type == mambo_bb 
 		&& bb_type != uncond_reg_riscv
-		&& bb_type != uncond_reg_riscv_c
 		&& bb_type != unknown) 
 	{
 		riscv_save_regs(&write_p, (m_x1 | m_x11));
@@ -935,24 +920,26 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 			riscv_beq_decode_fields(read_address, &rs1, &rs2, &immhi, &immlo);
 			cond.r1 = rs1;
 			cond.r2 = rs2;
-			if (inst == RISCV_BEQ) {
+			
+			switch (inst) {
+			case RISCV_BEQ:
 				cond.cond = EQ;
-				type = beq_riscv;
-			} else if (inst == RISCV_BNE) {
+				break;
+			case RISCV_BNE:
 				cond.cond = NE;
-				type = bne_riscv;
-			} else if (inst == RISCV_BLT) {
+				break;
+			case RISCV_BLT:
 				cond.cond = LT;
-				type = blt_riscv;
-			} else if (inst == RISCV_BGE) {
+				break;
+			case RISCV_BGE:
 				cond.cond = GE;
-				type = bge_riscv;
-			} else if (inst == RISCV_BLTU) {
+				break;
+			case RISCV_BLTU:
 				cond.cond = LTU;
-				type = bltu_riscv;
-			} else {
+				break;
+			case RISCV_BGEU:
 				cond.cond = GEU;
-				type = bgeu_riscv;
+				break;
 			}
 
 			riscv_calc_b_imm(immhi, immlo, &branch_offset);
@@ -961,12 +948,13 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 			target = (uint64_t)read_address + branch_offset;
 
 #ifdef DBM_LINK_COND_IMM
-			// Mark this as the beggining of code emulating B.cond
-			thread_data->code_cache_meta[basic_block].exit_branch_type = type;
+			// Mark this as the beggining of code emulating B(cond)
+			thread_data->code_cache_meta[basic_block].exit_branch_type = cond_imm_riscv;
 			thread_data->code_cache_meta[basic_block].exit_branch_addr = write_p;
 			thread_data->code_cache_meta[basic_block].branch_taken_addr = target;
-			thread_data->code_cache_meta[basic_block].branch_skipped_addr = (uint64_t)read_address + INST_32BIT;
-			thread_data->code_cache_meta[basic_block].branch_condition = cond.cond;
+			thread_data->code_cache_meta[basic_block].branch_skipped_addr = 
+				(uint64_t)read_address + INST_32BIT;
+			thread_data->code_cache_meta[basic_block].branch_condition = cond;
 			thread_data->code_cache_meta[basic_block].branch_cache_status = 0;
 #endif
 
@@ -991,10 +979,8 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 			cond.r2 = x0;
 			if (inst == RISCV_C_BEQZ) {
 				cond.cond = EQ;
-				type = beqz_riscv_c;
 			} else {
 				cond.cond = NE;
-				type = bnez_riscv_c;
 			}
 
 			riscv_calc_cb_imm(immhi, immlo, &branch_offset);
@@ -1002,12 +988,12 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 			target = (uint64_t)read_address + branch_offset;
 
 #ifdef DBM_LINK_COND_IMM
-			// Mark this as the beggining of code emulating B.cond
-			thread_data->code_cache_meta[basic_block].exit_branch_type = type;
+			// Mark this as the beggining of code emulating B(cond)
+			thread_data->code_cache_meta[basic_block].exit_branch_type = cond_imm_riscv;
 			thread_data->code_cache_meta[basic_block].exit_branch_addr = write_p;
 			thread_data->code_cache_meta[basic_block].branch_taken_addr = target;
 			thread_data->code_cache_meta[basic_block].branch_skipped_addr = (uint64_t)read_address + INST_16BIT;
-			thread_data->code_cache_meta[basic_block].branch_condition = cond.cond;
+			thread_data->code_cache_meta[basic_block].branch_condition = cond;
 			thread_data->code_cache_meta[basic_block].branch_cache_status = 0;
 #endif
 
@@ -1085,7 +1071,7 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 #endif
 
 			thread_data->code_cache_meta[basic_block].exit_branch_type = 
-				uncond_reg_riscv_c;
+				uncond_reg_riscv;
 			// FIXME: exit_branch_addr needed for RISC-V?
 			//thread_data->code_cache_meta[basic_block].exit_branch_addr = write_p;
 			thread_data->code_cache_meta[basic_block].rn = rs1;
