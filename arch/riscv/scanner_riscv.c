@@ -958,7 +958,8 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 			thread_data->code_cache_meta[basic_block].branch_cache_status = 0;
 #endif
 
-			riscv_branch_jump_cond(thread_data, &write_p, basic_block, target, read_address, &cond, INST_32BIT);
+			riscv_branch_jump_cond(thread_data, &write_p, basic_block, target, 
+				read_address, &cond, INST_32BIT);
 			stop = true;
 			break;
 		}
@@ -992,12 +993,14 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 			thread_data->code_cache_meta[basic_block].exit_branch_type = cond_imm_riscv;
 			thread_data->code_cache_meta[basic_block].exit_branch_addr = write_p;
 			thread_data->code_cache_meta[basic_block].branch_taken_addr = target;
-			thread_data->code_cache_meta[basic_block].branch_skipped_addr = (uint64_t)read_address + INST_16BIT;
+			thread_data->code_cache_meta[basic_block].branch_skipped_addr = 
+				(uint64_t)read_address + INST_16BIT;
 			thread_data->code_cache_meta[basic_block].branch_condition = cond;
 			thread_data->code_cache_meta[basic_block].branch_cache_status = 0;
 #endif
 
-			riscv_branch_jump_cond(thread_data, &write_p, basic_block, target, read_address, &cond, INST_16BIT);
+			riscv_branch_jump_cond(thread_data, &write_p, basic_block, target, 
+				read_address, &cond, INST_16BIT);
 			stop = true;
 			break;
 		}

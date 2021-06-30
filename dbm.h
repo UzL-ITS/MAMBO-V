@@ -35,6 +35,7 @@
 
 #ifdef DBM_ARCH_RISCV64
 #include "scanner_public.h"
+#include "arch/riscv/dispatcher_riscv.h"
 #endif
 
 #include "common.h"
@@ -151,15 +152,15 @@ typedef struct {
   uint16_t *exit_branch_addr;
 #endif // __arm__
 #ifdef __aarch64__
-  uint32_t *exit_branch_addr;
+  uint32_t *exit_branch_addr; /**< Beginning of the instrumented exit */
   uintptr_t branch_condition;
 #endif // __arch64__
 #ifdef DBM_ARCH_RISCV64
-  mambo_cond branch_condition;
+  mambo_cond branch_condition; /**< Exit branch condition */
 #endif // DBM_ARCH_RISCV64
-  uintptr_t branch_taken_addr;
-  uintptr_t branch_skipped_addr;
-  uintptr_t branch_cache_status;
+  uintptr_t branch_taken_addr; /**< Address of taken branch */
+  uintptr_t branch_skipped_addr; /**< Address of other branch taken */
+  uintptr_t branch_cache_status; /**< Linkage status */
   uint32_t rn;
   uint32_t free_b;
   ll_entry *linked_from;
@@ -339,7 +340,9 @@ size_t   scan_a64(dbm_thread *thread_data, uint32_t *read_address, int basic_blo
 int allocate_bb(dbm_thread *thread_data);
 void trace_dispatcher(uintptr_t target, uintptr_t *next_addr, uint32_t source_index, dbm_thread *thread_data);
 void flush_code_cache(dbm_thread *thread_data);
+#if defined(__arm__) || defined(__aarch64__)
 void insert_cond_exit_branch(dbm_code_cache_meta *bb_meta, void **o_write_p, int cond);
+#endif
 void sigret_dispatcher_call(dbm_thread *thread_data, ucontext_t *cont, uintptr_t target);
 
 void thumb_encode_stub_bb(dbm_thread *thread_data, int basic_block, uint32_t target);
