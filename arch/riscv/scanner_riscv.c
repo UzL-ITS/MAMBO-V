@@ -908,8 +908,8 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 		case RISCV_BGE:
 		case RISCV_BLTU:
 		case RISCV_BGEU: {
-			// Call dispatcher on (conditional) branch instructions
-			//? Hash lookup could speed it up
+			// Call dispatcher on (conditional) branch instructions (imm)
+			// Hash table linking and hash lookup is done by the dispatcher when called
 			enum reg rs1, rs2;
 			unsigned int immhi, immlo;
 			uint64_t branch_offset;
@@ -966,8 +966,8 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 
 		case RISCV_C_BEQZ:
 		case RISCV_C_BNEZ: {
-			// Call dispatcher on compressed (conditional) branch instructions
-			//? Hash lookup could speed it up
+			// Call dispatcher on compressed (conditional) branch instructions (imm)
+			// Hash table linking and hash lookup is done by the dispatcher when called
 			enum reg rs1, rs2;
 			unsigned int immhi, immlo;
 			uint64_t branch_offset;
@@ -1038,8 +1038,7 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 
 			thread_data->code_cache_meta[basic_block].exit_branch_type = 
 				uncond_reg_riscv;
-			// FIXME: exit_branch_addr needed for RISC-V?
-			//thread_data->code_cache_meta[basic_block].exit_branch_addr = write_p;
+			thread_data->code_cache_meta[basic_block].exit_branch_addr = write_p;
 			thread_data->code_cache_meta[basic_block].rn = rs1;
 
 #ifndef DBM_INLINE_HASH
@@ -1075,8 +1074,7 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 
 			thread_data->code_cache_meta[basic_block].exit_branch_type = 
 				uncond_reg_riscv;
-			// FIXME: exit_branch_addr needed for RISC-V?
-			//thread_data->code_cache_meta[basic_block].exit_branch_addr = write_p;
+			thread_data->code_cache_meta[basic_block].exit_branch_addr = write_p;
 			thread_data->code_cache_meta[basic_block].rn = rs1;
 
 #ifndef DBM_INLINE_HASH
