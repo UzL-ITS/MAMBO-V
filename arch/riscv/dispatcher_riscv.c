@@ -43,7 +43,8 @@ void insert_cond_exit_branch(dbm_code_cache_meta *bb_meta, uint16_t **write_p,
 	 	 * 				|	JAL		DISPATCHER			|
 	 	 * 				+-------------------------------+
 	 	 */
-		riscv_b_cond_helper(write_p, (uint64_t)write_p + 8, cond);
+		riscv_b_cond_helper(write_p, (uint64_t)*write_p + 8, cond);
+		break;
 
 	default:
 		fprintf(stderr, "insert_cond_exit_branch(): unknown branch type\n");

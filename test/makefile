@@ -48,5 +48,9 @@ test_scanner_riscv: $(PIE_ENCODER) $(PIE_DECODER) test_scanner_riscv.c ../arch/r
 	$(CC) -g $(CFLAGS) $(UNITY_CFLAGS) $(PIE_ENCODER) $(PIE_DECODER) test_scanner_riscv.c unity/unity.c $(LDFLAGS) $(OPTS) $(UNITY_DEFINE) -DMODULE_ONLY -o $@
 	./$@
 
+test_dispatcher_riscv: $(PIE_ENCODER) $(PIE_DECODER) test_dispatcher_riscv.c ../arch/riscv/dispatcher_riscv.c ../arch/riscv/scanner_riscv.c unity/unity.c
+	$(CC) -g $(CFLAGS) $(UNITY_CFLAGS) $(PIE_ENCODER) $(PIE_DECODER) test_dispatcher_riscv.c ../arch/riscv/dispatcher_riscv.c ../arch/riscv/scanner_riscv.c unity/unity.c $(LDFLAGS) $(OPTS) $(UNITY_DEFINE) -DMODULE_ONLY -o $@
+	./$@
+
 clean:
 	rm -f mmap_munmap mprotect_exec self_modifying signals hw_div load_store test_elf_loader test_scanner_riscv

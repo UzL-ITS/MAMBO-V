@@ -35,7 +35,6 @@
 
 #ifdef DBM_ARCH_RISCV64
 #include "scanner_public.h"
-#include "arch/riscv/dispatcher_riscv.h"
 #endif
 
 #include "common.h"
@@ -156,7 +155,7 @@ typedef struct {
   uintptr_t branch_condition;
 #endif // __arch64__
 #ifdef DBM_ARCH_RISCV64
-  uint32_t *exit_branch_addr; /**< Beginning of the instrumented exit */
+  uint16_t *exit_branch_addr; /**< Beginning of the instrumented exit */
   mambo_cond branch_condition; /**< Exit branch condition */
 #endif // DBM_ARCH_RISCV64
   uintptr_t branch_taken_addr; /**< Address of taken branch */

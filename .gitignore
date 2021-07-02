@@ -5,3 +5,4 @@ elf/elf_loader.o
 elf/symbol_parser.o
 .vscode/
 test/test_scanner_riscv
+test/test_dispatcher_riscv
