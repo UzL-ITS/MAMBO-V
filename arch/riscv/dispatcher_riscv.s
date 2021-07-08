@@ -87,14 +87,14 @@ dispatcher_trampoline:
 	SD	x10, 8(sp)
 	JAL 	push_x1_x31
 
-	ADDI	x12, sp, 232
-	LD	x13, disp_thread_data
+	ADDI	x12, sp, 232		# param2: *next_addr (TCP)
+	LD	x13, disp_thread_data	# param3: dbm_thread *thread_data
 
 	CALL	dispatcher_addr		# Call far-away function
 
 	JAL	pop_x1_x31
-	LD	x10, 0(sp)		# param0 = next_addr 
-	LD	x11, 8(sp)		# param1 = old param0
+	LD	x10, 0(sp)		# param0: TCP (next_addr)
+	LD	x11, 8(sp)		# param1: SPC (target)
 	C.ADDI	sp, 16
 	
 	J	checked_cc_return
@@ -102,11 +102,86 @@ dispatcher_trampoline:
 dispatcher_addr: .quad dispatcher
 
 .global disp_thread_data
-disp_thread_data: .quad 0
+disp_thread_data: .dword 0
 
 .global checked_cc_return
 checked_cc_return:
-	# TODO: Complete
+	C.ADDI	sp, -8
+	SD	x12, 0(sp)
+	LWU	x12, th_is_pending_ptr
+	BNEZ	x12, deliver_signals_trampoline
+	LD	x12, 0(sp)
+	C.ADDI	sp, 8
+	JR	x10
+deliver_signals_trampoline:
+	ADDI	sp, sp, -40
+	SD	x10, 24(sp)
+	SD	x11, 32(sp)
+	MV	x10, x11		# param0: SPC (target)
+	MV	x11, sp			# param1: self_signal *
+	JAL	push_x1_x31
+
+	LI	x12, 0xd6db		# param2: sigmask TODO: Why should SCP be 0xd6db?
+	BEQ	x10, x12, .		# loop if SPC (target) == 0xd6db
+
+	CALL	deliver_signals
+
+	JAL	pop_x1_x31
+
+	/*
+	 * Stack peek:
+	 * 		┌───────┐
+	 *	  sp ->	│ pid	│ ┐
+	 *	 	│ tgid	│ ├ self_signal struct
+	 *	 	│ signo	│ ┘
+	 *		│ TCP	├ Translated target PC (next_addr)
+	 *		│ SPC	├ Original target PC (target)
+	 *		│ x12	│
+	 *		│ x11	├ (Pushed by exit stub in scanner)
+	 *		│ x10	├ (Pushed by exit stub in scanner)
+	 * 		│.......│
+	 */
+
+	BEQZ	x10, abort_self_signal
+
+	# Syscall
+	LD	x10, 0(sp)		# param0: pid
+	LD	x11, 8(sp)		# param1: tgid
+	LD	x12, 16(sp)		# param2: signo
+	ADDI	sp, sp, 16
+	SD	x17, 0(sp)
+
+	/*
+	 * Stack peek:
+	 * 		┌───────┐
+	 *	  sp ->	│ x17	│
+	 *		│ TCP	├ Translated target PC (next_addr)
+	 *		│ SPC	├ Original target PC (target)
+	 *		│ x12	│
+	 *		│ x11	├ (Pushed by exit stub in scanner)
+	 *		│ x10	├ (Pushed by exit stub in scanner)
+	 * 		│.......│
+	 */
+r:
+	LI	x17, 131
+	ECALL
+
+send_self_signal:
+	LD	x17, 0(sp)
+	LD	x12, 24(sp)
+	LD	x10, 8(sp)		# Load TCP
+	C.ADDI	sp, 32
+	JR	x10
+
+abort_self_signal:
+	C.ADDI	sp, 24
+	LD	x12, 16(sp)
+	LD	x0, 0(sp)
+	C.ADDI	sp, 24
+	JR	x10
+
+.global th_is_pending_ptr
+th_is_pending_ptr: .word 0		# uint32
 
 .global end_of_dispatcher_s
 end_of_dispatcher_s:
