@@ -1098,10 +1098,11 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 
 		case RISCV_ECALL:
 			// Instrument system calls
-			riscv_save_regs(&write_p, (m_x1 | m_x8)); // TODO: change according to syscall_wrapper in dispatcher_riscv.s
+			riscv_save_regs(&write_p, (m_x1 | m_x8)); // Restored by syscall_wrapper
 			riscv_copy_to_reg_64bits(&write_p, x8, (uint64_t)read_address + 4);
 			riscv_branch_imm_helper(&write_p, thread_data->syscall_wrapper_addr, true);
-			riscv_restore_regs(&write_p, (m_x10 | m_x11)); // TODO: change according to syscall_wrapper in dispatcher_riscv.s
+			// x1 and x8 are replaced with x10 and x11 in stack, so they must be popped at this point
+			riscv_restore_regs(&write_p, (m_x10 | m_x11));
 
 			riscv_scanner_deliver_callbacks(thread_data, POST_BB_C, &read_address, -1,
 				&write_p, &data_p, basic_block, type, false, &stop);

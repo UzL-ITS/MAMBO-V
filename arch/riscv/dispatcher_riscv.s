@@ -79,6 +79,86 @@ pop_x1_x31:
 	ADDI	sp, sp, 232
 	RET
 
+push_x1_x31_full:
+	/*
+	 * Push general purpose registers. x1 to x31 saved in ascending order.
+	 * Warning: Must be paired with `pop_x1_x31_full` not `pop_x1_x31`!
+	 */
+	# Move sp first, so that compressed instructions can be used
+	# (SD replaced with C.SDSP by assembler)
+	ADDI	sp, sp, -248
+	SD	x1, 0(sp)
+	SD	x2, 8(sp)
+	SD	x3, 16(sp)
+	SD	x4, 24(sp)
+	SD	x5, 32(sp)
+	SD	x6, 40(sp)
+	SD	x7, 48(sp)
+	SD	x8, 56(sp)
+	SD	x9, 64(sp)
+	SD	x10, 72(sp)
+	SD	x11, 80(sp)
+	SD	x12, 88(sp)
+	SD	x13, 96(sp)
+	SD	x14, 104(sp)
+	SD	x15, 112(sp)
+	SD	x16, 120(sp)
+	SD	x17, 128(sp)
+	SD	x18, 136(sp)
+	SD	x19, 144(sp)
+	SD	x20, 152(sp)
+	SD	x21, 160(sp)
+	SD	x22, 168(sp)
+	SD	x23, 176(sp)
+	SD	x24, 184(sp)
+	SD	x25, 192(sp)
+	SD	x26, 200(sp)
+	SD	x27, 208(sp)
+	SD	x28, 216(sp)
+	SD	x29, 224(sp)
+	SD	x30, 232(sp)
+	SD	x31, 240(sp)
+	RET
+
+pop_x1_x31_full:
+	/*
+	 * Pop general purpose registers. x1 to x31 restored in ascending order.
+	 * Warning: Must be paired with `push_x1_x31_full` not `push_x1_x31`!
+	 */
+	LD	x1, 0(sp)
+	LD	x2, 8(sp)
+	LD	x3, 16(sp)
+	LD	x4, 24(sp)
+	LD	x5, 32(sp)
+	LD	x6, 40(sp)
+	LD	x7, 48(sp)
+	LD	x8, 56(sp)
+	LD	x9, 64(sp)
+	LD	x10, 72(sp)
+	LD	x11, 80(sp)
+	LD	x12, 88(sp)
+	LD	x13, 96(sp)
+	LD	x14, 104(sp)
+	LD	x15, 112(sp)
+	LD	x16, 120(sp)
+	LD	x17, 128(sp)
+	LD	x18, 136(sp)
+	LD	x19, 144(sp)
+	LD	x20, 152(sp)
+	LD	x21, 160(sp)
+	LD	x22, 168(sp)
+	LD	x23, 176(sp)
+	LD	x24, 184(sp)
+	LD	x25, 192(sp)
+	LD	x26, 200(sp)
+	LD	x27, 208(sp)
+	LD	x28, 216(sp)
+	LD	x29, 224(sp)
+	LD	x30, 232(sp)
+	LD	x31, 240(sp)
+	ADDI	sp, sp, 248
+	RET
+
 .global dispatcher_trampoline
 dispatcher_trampoline:
 	# PUSH all general purpose registers but x10, x11
@@ -103,6 +183,63 @@ dispatcher_addr: .quad dispatcher
 
 .global disp_thread_data
 disp_thread_data: .dword 0
+
+.global syscall_wrapper
+.global syscall_wrapper_svc
+syscall_wrapper:
+	JAL	push_x1_x31_full
+
+	# Call pre syscall handler
+	MV	x10, x17		# param0: syscall_no
+	ADDI	x11, sp, 72		# param1: *args
+	MV	X12, x8			# param2: *next_inst (x8 set by scanner)
+	LD	x13, disp_thread_data	# param3: dbm_thread *thread_data
+	
+	CALL	syscall_handler_pre_addr
+
+	BEQZ	x10, s_w_r
+
+	# Load syscall parameter registers
+	LD	x10, 72(sp)
+	LD	x11, 80(sp)
+	LD	x12, 88(sp)
+	LD	x13, 96(sp)
+	LD	x14, 104(sp)
+	LD	x15, 112(sp)
+	LD	x16, 120(sp)
+
+	# Balance the stack on rt_sigreturn, which doesn't return here
+	LI	x28, 139
+	BNE	x17, x28, svc
+	ADDI	sp, sp, (8 + 248)	# Additional 8 because scanner pushed x8
+
+svc:
+	# Syscall
+	ECALL
+
+syscall_wrapper_svc:
+	# Call post syscall handler
+	ADDI	x11, sp, 72		# param1: *args
+	SD	x10, 0(x11)
+	MV	x10, x17		# param0: syscall_no
+	MV	x12, x8			# param2: *next_inst (x8 set by scanner)
+	LD	x13, disp_thread_data	# param3: dbm_thread *thread_data
+
+	CALL	syscall_handler_post_addr
+
+s_w_r:
+	JAL	pop_x1_x31_full
+	LD	x8, 0(sp)		# Restore x8 pushed by scanner
+	LD	x1, 8(sp)		# Restore x1 pushed by scanner
+	SD	x10, 8(sp)
+	SD	x11, 0(sp)
+	LD	x10, -248(sp)		# param0: TCP (x1 set by scanner)
+	LD	x11, -192(sp)		# param1: SPC (x8 set by scanner)
+
+	J	checked_cc_return
+
+syscall_handler_pre_addr: .quad syscall_handler_pre
+syscall_handler_post_addr: .quad syscall_handler_post
 
 .global checked_cc_return
 checked_cc_return:
