@@ -1,3 +1,4 @@
 [submodule "pie"]
 	path = pie
 	url = https://github.com/beehive-lab/pie.git
+	ignore = dirty
