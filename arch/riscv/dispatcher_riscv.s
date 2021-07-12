@@ -162,7 +162,7 @@ pop_x1_x31_full:
 .global dispatcher_trampoline
 dispatcher_trampoline:
         # PUSH all general purpose registers but x10, x11
-        # x0 and x11 are pushed by the exit stub
+        # x10 and x11 are pushed by the exit stub
         C.ADDI  sp, -16
         SD      x10, 8(sp)
         JAL     push_x1_x31
@@ -192,7 +192,7 @@ syscall_wrapper:
         # Call pre syscall handler
         MV      x10, x17                # param0: syscall_no
         ADDI    x11, sp, 72             # param1: *args
-        MV      X12, x8	                # param2: *next_inst (x8 set by scanner)
+        MV      x12, x8	                # param2: *next_inst (x8 set by scanner)
         LD      x13, disp_thread_data   # param3: dbm_thread *thread_data
         
         CALL    syscall_handler_pre_addr
@@ -307,13 +307,13 @@ send_self_signal:
         LD      x17, 0(sp)
         LD      x12, 24(sp)
         LD      x10, 8(sp)              # Load TCP
-        C.ADDI  sp, 32
+        ADDI    sp, sp, 32
         JR      x10
 
 abort_self_signal:
         C.ADDI  sp, 24
         LD      x12, 16(sp)
-        LD      x0, 0(sp)
+        LD      x10, 0(sp)
         C.ADDI  sp, 24
         JR      x10
 
