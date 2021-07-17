@@ -344,6 +344,10 @@ ssize_t interval_map_delete(interval_map *imap, uintptr_t start, uintptr_t end) 
   #define first_reg x0
   #define last_reg sp
 #endif
+#ifdef DBM_ARCH_RISCV
+  #define first_reg x1
+  #define last_reg x31
+#endif
 
 uint32_t next_reg_in_list(uint32_t reglist, uint32_t start) {
   for (; start <= last_reg; start++) {
@@ -418,6 +422,9 @@ extern void __try_memcpy_error();
   #define pc_reg uc_mcontext.arm_pc
 #elif __aarch64__
   #define pc_reg uc_mcontext.pc
+#endif
+#ifdef DBM_ARCH_RISCV
+  #define pc_reg uc_mcontext.__gregs[REG_PC]
 #endif
 void memcpy_fault(int i, siginfo_t *info, void *ctx_ptr) {
   ucontext_t *ctx = (ucontext_t *)ctx_ptr;
