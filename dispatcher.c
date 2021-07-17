@@ -29,6 +29,8 @@
 #include "pie/pie-arm-encoder.h"
 #elif __aarch64__
 #include "pie/pie-a64-encoder.h"
+#elif DBM_ARCH_RISCV64
+#include "arch/riscv/dispatcher_riscv.h"
 #endif
 
 #ifdef DEBUG
@@ -88,5 +90,8 @@ void dispatcher(uintptr_t target, uint32_t source_index, uintptr_t *next_addr, d
 #endif
 #ifdef __aarch64__
   dispatcher_aarch64(thread_data, source_index, source_branch_type, target, block_address);
+#endif
+#ifdef DBM_ARCH_RISCV64
+  dispatcher_riscv(thread_data, source_index, source_branch_type, target, block_address);
 #endif
 }

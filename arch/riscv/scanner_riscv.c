@@ -908,8 +908,8 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 		case RISCV_BGE:
 		case RISCV_BLTU:
 		case RISCV_BGEU: {
-			// Call dispatcher on (conditional) branch instructions
-			//? Hash lookup could speed it up
+			// Call dispatcher on (conditional) branch instructions (imm)
+			// Hash table linking and hash lookup is done by the dispatcher when called
 			enum reg rs1, rs2;
 			unsigned int immhi, immlo;
 			uint64_t branch_offset;
@@ -958,15 +958,16 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 			thread_data->code_cache_meta[basic_block].branch_cache_status = 0;
 #endif
 
-			riscv_branch_jump_cond(thread_data, &write_p, basic_block, target, read_address, &cond, INST_32BIT);
+			riscv_branch_jump_cond(thread_data, &write_p, basic_block, target, 
+				read_address, &cond, INST_32BIT);
 			stop = true;
 			break;
 		}
 
 		case RISCV_C_BEQZ:
 		case RISCV_C_BNEZ: {
-			// Call dispatcher on compressed (conditional) branch instructions
-			//? Hash lookup could speed it up
+			// Call dispatcher on compressed (conditional) branch instructions (imm)
+			// Hash table linking and hash lookup is done by the dispatcher when called
 			enum reg rs1, rs2;
 			unsigned int immhi, immlo;
 			uint64_t branch_offset;
@@ -992,12 +993,14 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 			thread_data->code_cache_meta[basic_block].exit_branch_type = cond_imm_riscv;
 			thread_data->code_cache_meta[basic_block].exit_branch_addr = write_p;
 			thread_data->code_cache_meta[basic_block].branch_taken_addr = target;
-			thread_data->code_cache_meta[basic_block].branch_skipped_addr = (uint64_t)read_address + INST_16BIT;
+			thread_data->code_cache_meta[basic_block].branch_skipped_addr = 
+				(uint64_t)read_address + INST_16BIT;
 			thread_data->code_cache_meta[basic_block].branch_condition = cond;
 			thread_data->code_cache_meta[basic_block].branch_cache_status = 0;
 #endif
 
-			riscv_branch_jump_cond(thread_data, &write_p, basic_block, target, read_address, &cond, INST_16BIT);
+			riscv_branch_jump_cond(thread_data, &write_p, basic_block, target, 
+				read_address, &cond, INST_16BIT);
 			stop = true;
 			break;
 		}
@@ -1035,8 +1038,7 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 
 			thread_data->code_cache_meta[basic_block].exit_branch_type = 
 				uncond_reg_riscv;
-			// FIXME: exit_branch_addr needed for RISC-V?
-			//thread_data->code_cache_meta[basic_block].exit_branch_addr = write_p;
+			thread_data->code_cache_meta[basic_block].exit_branch_addr = write_p;
 			thread_data->code_cache_meta[basic_block].rn = rs1;
 
 #ifndef DBM_INLINE_HASH
@@ -1072,8 +1074,7 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 
 			thread_data->code_cache_meta[basic_block].exit_branch_type = 
 				uncond_reg_riscv;
-			// FIXME: exit_branch_addr needed for RISC-V?
-			//thread_data->code_cache_meta[basic_block].exit_branch_addr = write_p;
+			thread_data->code_cache_meta[basic_block].exit_branch_addr = write_p;
 			thread_data->code_cache_meta[basic_block].rn = rs1;
 
 #ifndef DBM_INLINE_HASH
@@ -1097,10 +1098,11 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 
 		case RISCV_ECALL:
 			// Instrument system calls
-			riscv_save_regs(&write_p, (m_x1 | m_x8)); // TODO: change according to syscall_wrapper in dispatcher_riscv.s
+			riscv_save_regs(&write_p, (m_x1 | m_x8)); // Restored by syscall_wrapper
 			riscv_copy_to_reg_64bits(&write_p, x8, (uint64_t)read_address + 4);
 			riscv_branch_imm_helper(&write_p, thread_data->syscall_wrapper_addr, true);
-			riscv_restore_regs(&write_p, (m_x10 | m_x11)); // TODO: change according to syscall_wrapper in dispatcher_riscv.s
+			// x1 and x8 are replaced with x10 and x11 in stack, so they must be popped at this point
+			riscv_restore_regs(&write_p, (m_x10 | m_x11));
 
 			riscv_scanner_deliver_callbacks(thread_data, POST_BB_C, &read_address, -1,
 				&write_p, &data_p, basic_block, type, false, &stop);
