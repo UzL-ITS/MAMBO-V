@@ -36,6 +36,8 @@ static inline int64_t atomic_increment_i64(int64_t *loc, int64_t inc) {
   #define atomic_increment_uptr(loc, inc) atomic_increment_u32(loc, inc);
 #elif __aarch64__
   #define atomic_increment_uptr(loc, inc) atomic_increment_u64(loc, inc);
+#elif DBM_ARCH_RISCV64
+  #define atomic_increment_uptr(loc, inc) atomic_increment_u64(loc, inc);
 #endif
 #define atomic_increment_int(loc, inc) atomic_increment_i32(loc, inc);
 #define atomic_increment_uint(loc, inc) atomic_increment_u32(loc, inc);

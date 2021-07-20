@@ -24,6 +24,84 @@
 .syntax unified
 #endif
 
+#ifdef DBM_ARCH_RISCV64
+.global push_gen_regs
+push_gen_regs:
+  /*
+   * Push general purpose registers 
+   * x1 to x31 exept for sp (x2), x10 and x11
+   */
+  # Move sp first, so that compressed instructions can be used
+  # (SD replaced with C.SDSP by assembler)
+  ADDI sp, sp, -224
+  SD x1, 216(sp)
+  SD x3, 208(sp)
+  SD x4, 200(sp)
+  SD x5, 192(sp)
+  SD x6, 184(sp)
+  SD x7, 176(sp)
+  SD x8, 168(sp)
+  SD x9, 160(sp)
+  SD x12, 152(sp)
+  SD x13, 144(sp)
+  SD x14, 136(sp)
+  SD x15, 128(sp)
+  SD x16, 120(sp)
+  SD x17, 112(sp)
+  SD x18, 104(sp)
+  SD x19, 96(sp)
+  SD x20, 88(sp)
+  SD x21, 80(sp)
+  SD x22, 72(sp)
+  SD x23, 64(sp)
+  SD x24, 56(sp)
+  SD x25, 48(sp)
+  SD x26, 40(sp)
+  SD x27, 32(sp)
+  SD x28, 24(sp)
+  SD x29, 16(sp)
+  SD x30, 8(sp)
+  SD x31, 0(sp)
+  RET
+
+.global pop_gen_regs
+pop_gen_regs:
+  /*
+   * Pop general purpose registers 
+   * x1 to x31 exept for sp (x2), x10 and x11
+   */
+  LD x1, 216(sp)
+  LD x3, 208(sp)
+  LD x4, 200(sp)
+  LD x5, 192(sp)
+  LD x6, 184(sp)
+  LD x7, 176(sp)
+  LD x8, 168(sp)
+  LD x9, 160(sp)
+  LD x12, 152(sp)
+  LD x13, 144(sp)
+  LD x14, 136(sp)
+  LD x15, 128(sp)
+  LD x16, 120(sp)
+  LD x17, 112(sp)
+  LD x18, 104(sp)
+  LD x19, 96(sp)
+  LD x20, 88(sp)
+  LD x21, 80(sp)
+  LD x22, 72(sp)
+  LD x23, 64(sp)
+  LD x24, 56(sp)
+  LD x25, 48(sp)
+  LD x26, 40(sp)
+  LD x27, 32(sp)
+  LD x28, 24(sp)
+  LD x29, 16(sp)
+  LD x30, 8(sp)
+  LD x31, 0(sp)
+  ADDI sp, sp, 224
+  RET
+#endif
+
 .global dbm_client_entry
 .func dbm_client_entry
 .type dbm_client_entry, %function
@@ -46,6 +124,14 @@ dbm_client_entry:
   MOV SP, X1
   STP XZR, XZR, [SP, #-16]!
   BR X0
+#endif
+
+#ifdef DBM_ARCH_RISCV64
+  MV sp, a1
+  ADDI sp, sp, -16      # The scanner inserted code to pop a0 and a1, so push zeros before
+  SD zero, 0(sp)
+  SD zero, 8(sp)
+  JR a0
 #endif
 .endfunc
 
@@ -84,6 +170,43 @@ th_enter:
 
   BR X1
 #endif
+
+#ifdef DBM_ARCH_RISCV64
+th_enter:
+  MV sp, a0
+  # Load saved parent registers from child stack excluding sp (x2), a0 (x10) and a1 (x11).
+  # a0 and a1 are popped by the scanner.
+  LD x1, 0(sp)
+  LD x3, 16(sp)
+  LD x4, 24(sp)
+  LD x5, 32(sp)
+  LD x6, 40(sp)
+  LD x7, 48(sp)
+  LD x8, 56(sp)
+  LD x9, 64(sp)
+  LD x12, 88(sp)
+  LD x13, 96(sp)
+  LD x14, 104(sp)
+  LD x15, 112(sp)
+  LD x16, 120(sp)
+  LD x17, 128(sp)
+  LD x18, 136(sp)
+  LD x19, 144(sp)
+  LD x20, 152(sp)
+  LD x21, 160(sp)
+  LD x22, 168(sp)
+  LD x23, 176(sp)
+  LD x24, 184(sp)
+  LD x25, 192(sp)
+  LD x26, 200(sp)
+  LD x27, 208(sp)
+  LD x28, 216(sp)
+  LD x29, 224(sp)
+  LD x30, 232(sp)
+  LD x31, 240(sp)
+  ADDI sp, sp, 248
+  JR a1
+#endif
 .endfunc
 
 .global new_thread_trampoline
@@ -93,6 +216,7 @@ new_thread_trampoline:
 #ifdef __arm__
   PUSH {R4-R12, LR}
   MOV R1, SP
+  B dbm_start_thread_pth
 #elif __aarch64__
   STP X19, X20, [SP, #-96]!
   STP X21, X22, [SP, #16]
@@ -101,8 +225,13 @@ new_thread_trampoline:
   STP X27, X28, [SP, #64]
   STP X29, X30, [SP, #80]
   MOV X1, SP
-#endif
   B dbm_start_thread_pth
+#elif DBM_ARCH_RISCV64
+  # Save registers as part of the standard calling convention
+  JAL push_gen_regs
+  MV a1, sp
+  J dbm_start_thread_pth
+#endif
 .endfunc
 
 .global return_with_sp
@@ -120,6 +249,11 @@ return_with_sp:
   LDP X27, X28, [SP, #64]
   LDP X29, X30, [SP, #80]
   LDP X19, X20, [SP], #96
+  RET
+#elif DBM_ARCH_RISCV64
+  MV sp, a0
+  # Restore registers as part of the standard calling convention
+  JAL pop_gen_regs
   RET
 #endif
 .endfunc
@@ -151,6 +285,17 @@ raw_syscall:
   MOV X5, X6
   MOV X6, X7
   SVC 0
+  RET
+#endif
+#ifdef DBM_ARCH_RISCV64
+  MV a7, a0     # Set syscall number
+  MV a0, a1
+  MV a1, a2
+  MV a2, a3
+  MV a3, a4
+  MV a4, a5
+  MV a5, a6
+  ECALL
   RET
 #endif
 .endfunc
@@ -207,6 +352,22 @@ sigret:
   MOV X8, #139
   SVC 0
 #endif
+#ifdef DBM_ARCH_RISCV64
+  C.ADDI sp, -16
+  SD a0, 0(sp)
+  SD a1, 8(sp)
+  JAL push_gen_regs
+  JAL signal_dispatcher
+  JAL pop_gen_regs
+
+  BEQZ a0, sigret
+
+  JR a0
+sigret:
+  C.ADDI sp, 16
+  LI a7, 137
+  ECALL
+#endif
 .endfunc
 
 .global atomic_increment_u64
@@ -239,6 +400,10 @@ retry:
   MOV X0, X2
   RET
 
+#elif DBM_ARCH_RISCV64
+  AMOADD.D zero, a1, (a0)
+  RET
+
 #endif
 .endfunc
 
@@ -262,6 +427,10 @@ atomic_increment_u32:
   STXR W3, W2, [X0]
   CBNZ W3, atomic_increment_u32
   MOV W0, W2
+  RET
+
+#elif DBM_ARCH_RISCV64
+  AMOADD.W zero, a1, (a0)
   RET
 
 #endif
@@ -299,6 +468,19 @@ abort:
 abort:
   CLREX
   MOV W0, #-1
+  RET
+
+#elif DBM_ARCH_RISCV64
+  LR.W.aq t1, (a0)
+  BLEZ t1, abort
+  SUB t1, t1, a2
+  SC.W.rl t2, t1, (a0)
+  BNEZ t2, atomic_decrement_if_positive_i32
+  MV a0, t1
+  RET
+abort:
+  SC.W zero, t1, (a0)
+  LI a0, -1
   RET
 
 #endif
@@ -367,6 +549,12 @@ safe_fcall_trampoline:
   LDP X8,  X9,  [SP], #128
 
   RET
+
+#elif DBM_ARCH_RISCV64
+  JAL push_x1_x31
+  JALR x18          # function pointer
+  JAL pop_x1_x31
+  RET
 #endif
 
 .endfunc
@@ -400,5 +588,18 @@ __try_memcpy_error:
 
 __try_memcpy_error:
   MOV X0, #-1
+  RET
+#elif DBM_ARCH_RISCV64
+  LB t1, 0(a1)
+  SB t1, 0(a0)
+  C.ADDI a0, 1
+  C.ADDI a1, 1
+  ADDI a2, a2, -1
+  BNEZ a2, __try_memcpy_error
+  LI a0, 0
+  RET
+
+__try_memcpy_error:
+  LI a0, -1
   RET
 #endif
