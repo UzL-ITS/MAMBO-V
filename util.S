@@ -402,6 +402,7 @@ retry:
 
 #elif DBM_ARCH_RISCV64
   AMOADD.D zero, a1, (a0)
+  LD a0, 0(a0)
   RET
 
 #endif
@@ -431,6 +432,7 @@ atomic_increment_u32:
 
 #elif DBM_ARCH_RISCV64
   AMOADD.W zero, a1, (a0)
+  LW a0, 0(a0)
   RET
 
 #endif
@@ -473,7 +475,7 @@ abort:
 #elif DBM_ARCH_RISCV64
   LR.W.aq t1, (a0)
   BLEZ t1, abort
-  SUB t1, t1, a2
+  SUB t1, t1, a1
   SC.W.rl t2, t1, (a0)
   BNEZ t2, atomic_decrement_if_positive_i32
   MV a0, t1
