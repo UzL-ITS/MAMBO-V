@@ -3,3 +3,5 @@ mprotect_exec
 self_modifying
 signals
 load_store
+test_scanner_riscv
+test_dispatcher_riscv
