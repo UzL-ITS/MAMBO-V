@@ -5,3 +5,4 @@ signals
 load_store
 test_scanner_riscv
 test_dispatcher_riscv
+test_util
