@@ -42,8 +42,15 @@
 
 /* Various parameters which can be tuned */
 
+// Set program counter alignment
+#ifdef DBM_ARCH_RISCV64
+  // 16 bit compressed instructions relaxing the pc alignment
+  #define ARCH_BYTE_ALIGN 2
+#else
+  #define ARCH_BYTE_ALIGN 4
+#endif
 // BASIC_BLOCK_SIZE should be a power of 2
-#define BASIC_BLOCK_SIZE 64
+#define BASIC_BLOCK_SIZE 64 //TODO: For RISC-V maybe 128 due to 16 bit alignment
 #ifdef DBM_TRACES
   #define CODE_CACHE_SIZE 55000
 #else
@@ -52,8 +59,13 @@
 #define TRACE_FRAGMENT_NO 60000
 #define CODE_CACHE_OVERP 30
 #define TRACE_FRAGMENT_OVERP 50
-#define MAX_BRANCH_RANGE (16*1024*1024)
-#define TRACE_CACHE_SIZE (MAX_BRANCH_RANGE - (CODE_CACHE_SIZE*BASIC_BLOCK_SIZE * 4))
+#ifdef DBM_ARCH_RISCV64
+  #define MAX_BRANCH_RANGE 0x100000
+#else
+  #define MAX_BRANCH_RANGE (16*1024*1024)
+#endif
+#ifdef DBM_ARCH_RISCV64
+#define TRACE_CACHE_SIZE (MAX_BRANCH_RANGE - (CODE_CACHE_SIZE*BASIC_BLOCK_SIZE * ARCH_BYTE_ALIGN))
 #define TRACE_LIMIT_OFFSET (2*1024)
 
 #define TRACE_ALIGN 4 // must be a power of 2
@@ -129,7 +141,11 @@ typedef enum {
 } branch_type;
 
 typedef struct {
+#ifdef DBM_ARCH_RISCV64
+  uint16_t words[BASIC_BLOCK_SIZE];
+#else
   uint32_t words[BASIC_BLOCK_SIZE];
+#endif
 } dbm_block;
 
 typedef struct {
@@ -444,6 +460,10 @@ int function_watch_add(watched_functions_t *self, char *name, int plugin_id,
   #define context_pc uc_mcontext.pc
   #define context_sp uc_mcontext.sp
   #define context_reg(reg) uc_mcontext.regs[reg]
+#elif
+  #define context_pc uc_mcontext.__gregs[REG_PC]
+  #define context_sp uc_mcontext.__gregs[REG_SP]
+  #define context_reg(reg) uc_mcontext.__gregs[reg]
 #endif
 
 #endif
