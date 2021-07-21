@@ -231,11 +231,16 @@ uintptr_t scan(dbm_thread *thread_data, uint16_t *address, int basic_block) {
 #ifdef __aarch64__
   block_size = scan_a64(thread_data, (uint32_t *)address, basic_block, mambo_bb, NULL);
 #endif
+#ifdef DBM_ARCH_RISCV64
+  block_size = scan_riscv(thread_data, (uint16_t *)address, basic_block, mambo_bb, NULL);
+#endif
 
 #ifdef __arm__
   inst_set inst_type = thumb ? THUMB_INST : ARM_INST;
 #elif __aarch64__
   inst_set inst_type = A64_INST;
+#elif DBM_ARCH_RISCV64
+  inst_set inst_type = RISCV64_INST;
 #endif
   bool stop = true;
   mambo_deliver_callbacks_code(POST_BB_C, thread_data, mambo_bb, basic_block, inst_type,
@@ -429,6 +434,9 @@ void init_thread(dbm_thread *thread_data) {
   #ifdef __aarch64__
   uint32_t *write_p = (uint32_t *)(thread_data->trace_head_incr_addr + 4);
   a64_copy_to_reg_64bits(&write_p, x2, (uintptr_t)thread_data->exec_count);
+  #endif
+  #ifdef DBM_ARCH_RISCV64
+  // TODO: RISC-V traces
   #endif
 
   info("Traces start at: %p\n", &thread_data->code_cache->traces);
