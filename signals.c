@@ -39,12 +39,21 @@
 #include "pie/pie-a64-decoder.h"
 #include "pie/pie-a64-field-decoder.h"
 #endif
+#ifdef DBM_ARCH_RISCV64
+#include "pie/pie-riscv-encoder.h"
+#include "pie/pie-riscv-decoder.h"
+#include "pie/pie-riscv-field-decoder.h"
+#endif
 
 #define self_send_signal_offset        ((uintptr_t)send_self_signal - (uintptr_t)&start_of_dispatcher_s)
 #define syscall_wrapper_svc_offset     ((uintptr_t)syscall_wrapper_svc - (uintptr_t)&start_of_dispatcher_s)
 
 #define SIGNAL_TRAP_IB (0x94)
 #define SIGNAL_TRAP_DB (0x95)
+#ifdef DBM_ARCH_RISCV64
+  #define RISCV_SRET_CODE 0x10200073
+  #define RISCV_MRET_CODE 0x30200073
+#endif
 
 #ifdef __arm__
   #define pc_field uc_mcontext.arm_pc
@@ -52,6 +61,9 @@
 #elif __aarch64__
   #define pc_field uc_mcontext.pc
   #define sp_field uc_mcontext.sp
+#elif DBM_ARCH_RISCV64
+  #define pc_field uc_mcontext.__gregs[REG_PC]
+  #define sp_field uc_mcontext.__gregs[REG_SP]
 #endif
 
 typedef struct {
@@ -104,12 +116,43 @@ typedef int (*inst_decoder)(void *);
                               write_p += 4; \
                             }
   #define TRAP_INST_TYPE ((is_thumb) ? THUMB_UDF16 : ARM_UDF)
-#elif __aarch64__
+#elif __aarch64__d
   #define inst_size(inst, is_thumb) (4)
   #define write_trap(code) a64_HVC((uint32_t **)&write_p, (code)); write_p += 4;
   #define TRAP_INST_TYPE (A64_HVC)
+#elif DBM_ARCH_RISCV64
+  #define inst_size(inst, is_thumb) (inst <= 39 ? INST_16BIT : INST_32BIT)
+  #define write_trap(code) if (code == SIGNAL_TRAP_IB) { \
+                             riscv_sret((uint16_t **)&write_p); /* SRET for indirect branch */ \
+                           } else { \
+                             riscv_mret((uint16_t **)&write_p); /* MRET for direct branch */ \
+                           } \
+                           write_p += INST_32BIT
+  #define TRAP_INST_TYPE (RISCV_INVALID) // The decoder does not know the SRET or MRET instructions
 #endif
 
+#ifdef DBM_ARCH_RISCV64
+static void riscv_sret (uint16_t **address)
+{
+	uint32_t inst = RISCV_SRET_CODE;
+	*(*address + 1) = (uint16_t)(inst >> 16);
+	*(*address) = (uint16_t)(inst & 0xffff);
+}
+
+static void riscv_mret (uint16_t **address)
+{
+	uint32_t inst = RISCV_MRET_CODE;
+	*(*address + 1) = (uint16_t)(inst >> 16);
+	*(*address) = (uint16_t)(inst & 0xffff);
+}
+#endif
+
+/**
+ * Search for the indirect basic block exit and replace it with a trap to cause 
+ * UNLINK_SIGNAL.
+ * @param bb_meta Basic-Block meta data.
+ * @param o_write_p Starting point of search for exit instruction.
+ */
 bool unlink_indirect_branch(dbm_code_cache_meta *bb_meta, void **o_write_p) {
   int br_inst_type, trap_inst_type;
   inst_decoder decoder;
@@ -127,11 +170,18 @@ bool unlink_indirect_branch(dbm_code_cache_meta *bb_meta, void **o_write_p) {
 #elif __aarch64__
   br_inst_type = A64_BR;
   decoder = (inst_decoder)a64_decode;
+#elif DBM_ARCH_RISCV64
+  decoder = (inst_decoder)riscv_decode;
 #endif
   trap_inst_type = TRAP_INST_TYPE;
 
+  // Search for br_inst_type instruction
   int inst = decoder(write_p);
+#ifndef DBM_ARCH_RISCV64
   while(inst != br_inst_type && inst != trap_inst_type) {
+#else
+  while(inst != RISCV_C_JR && inst != RISCV_JALR && trap_inst_type) {
+#endif
     write_p += inst_size(inst, is_thumb);
     inst = decoder(write_p);
   }
@@ -140,6 +190,7 @@ bool unlink_indirect_branch(dbm_code_cache_meta *bb_meta, void **o_write_p) {
     return false;
   }
 
+  // Write trap to cause UNLINK_SIGNAL
   write_trap(SIGNAL_TRAP_IB);
   *o_write_p = write_p;
   return true;
@@ -355,6 +406,7 @@ void translate_svc_frame(ucontext_t *cont) {
   cont->sp_field = (uintptr_t)sp;
 }
 
+#ifdef defined(__arm__) || defined(__aarch64__)
 #define PSTATE_N (1 << 31)
 #define PSTATE_Z (1 << 30)
 #define PSTATE_C (1 << 29)
@@ -398,6 +450,48 @@ bool interpret_condition(uint32_t pstate, mambo_cond cond) {
 
   return state;
 }
+#elif DBM_ARCH_RISCV64
+/**
+ * Test if condition in conditional branch instruction is true or false.
+ * @param context Userlevel context containing register values. @see ucontext_t
+ * @param write_p Location of the linked conditional branch instruction.
+ * @return Whether conditional branch is would be taken or not.
+ */
+bool interpret_condition(ucontext_t *context, uintptr_t write_p)
+{
+  mambo_cond cond;
+  riscv_get_mambo_cond(riscv_decode((uint16_t *)write_p), (uint16_t *)write_p, &cond, NULL);
+
+  // Load values to compare
+  int v1 = (cond.r1 == x0) ? 0 : context->uc_mcontext.__gregs[cond.r1];
+  int v2 = (cond.r2 == x0) ? 0 : context->uc_mcontext.__gregs[cond.r2];
+
+  // Check if condition is true
+  switch (cond.cond) {
+  case EQ:
+    return (v1 == v2);
+    break;
+  case NE:
+    return (v1 != v2);
+    break;
+  case LT:
+    return (v1 < v2);
+    break;
+  case GE:
+    return (v1 >= v2);
+    break;
+  case LTU:
+    return ((unsigned int)v1 < (unsigned int)v2);
+    break;
+  case GEU:
+    return ((unsigned int)v1 >= (unsigned int)v2);
+    break;
+  
+  default:
+    return true;
+  }
+}
+#endif
 
 #ifdef __aarch64__
 bool interpret_cbz(ucontext_t *cont, dbm_code_cache_meta *bb_meta) {
@@ -421,17 +515,19 @@ bool interpret_tbz(ucontext_t *cont, dbm_code_cache_meta *bb_meta) {
 
 #ifdef __arm__
   #define direct_branch(write_p, target, cond)  if (is_thumb) { \
-                                                  thumb_b32_helper((write_p), (target)); \
+                                                  thumb_b32_helper((write_p), (target)) \
                                                 } else { \
-                                                  arm_b32_helper((write_p), (target), cond); \
+                                                  arm_b32_helper((write_p), (target), cond) \
                                                 }
 #elif __aarch64__
-  #define direct_branch(write_p, target, cond)  a64_b_helper((write_p), (target) + 4);
+  #define direct_branch(write_p, target, cond)  a64_b_helper((write_p), (target) + 4)
+#elif DBM_ARCH_RISCV
+  #define direct_branch(write_p, target, cond) riscv_branch_imm_helper(write_p, target, false)
 #endif
 
 #ifdef __arm__
 void restore_exit(dbm_thread *thread_data, int fragment_id, void **o_write_p, bool is_thumb) {
-#elif __aarch64__
+#elif defined(__aarch64__) || defined(DBM_ARCH_RISCV64)
 void restore_exit(dbm_thread *thread_data, int fragment_id, void **o_write_p) {
 #endif
   void *write_p = *o_write_p;
@@ -496,6 +592,10 @@ void sigret_dispatcher_call(dbm_thread *thread_data, ucontext_t *cont, uintptr_t
 #elif __aarch64__
   #define restore_ihl_inst(addr) a64_BR((uint32_t **)&addr, x0); \
                                 __clear_cache((void *)addr, (void *)addr + 4);
+
+#elif DBM_ARCH_RISCV64
+  #define restore_ihl_inst(addr) riscv_jalr((uint16_t **)&addr, x0, x10, 0); \
+                                 __clear_cache((void *)addr, (void *)addr + INST_32BIT)
 #endif
 
 /* If type == indirect && pc >= exit, read the pc and deliver the signal */
@@ -557,6 +657,13 @@ uintptr_t signal_dispatcher(int i, siginfo_t *info, void *context) {
         }
 #elif __aarch64__
         a64_HVC_decode_fields((uint32_t *)pc, &imm);
+#elif DBM_ARCH_RISCV
+        if (*(uint32_t *)pc == RISCV_SRET_CODE)
+          imm = SIGNAL_TRAP_IB;
+        else if (*(uint32_t *)pc == RISCV_MRET_CODE)
+          imm = SIGNAL_TRAP_DB;
+        else
+          imm = 0;
 #endif
         if (imm == SIGNAL_TRAP_IB) {
           restore_ihl_inst(pc);
@@ -568,6 +675,8 @@ uintptr_t signal_dispatcher(int i, siginfo_t *info, void *context) {
           target = regs[rn];
 #elif __aarch64__
           target = cont->uc_mcontext.regs[rn];
+#elif DBM_ARCH_RISCV64
+          target = cont->uc_mcontext.__gregs[rn];
 #endif
           restore_ihl_regs(cont);
           sigret_dispatcher_call(current_thread, cont, target);
@@ -577,7 +686,7 @@ uintptr_t signal_dispatcher(int i, siginfo_t *info, void *context) {
           void *start_addr = write_p;
 #ifdef __arm__
           restore_exit(current_thread, fragment_id, &write_p, is_thumb);
-#elif __aarch64__
+#elif defined(__aarch64__) || defined(DBM_ARCH_RISCV64)
           restore_exit(current_thread, fragment_id, &write_p);
 #endif
           __clear_cache(start_addr, write_p);
@@ -606,6 +715,14 @@ uintptr_t signal_dispatcher(int i, siginfo_t *info, void *context) {
               break;
             case tbz_a64:
               is_taken = interpret_tbz(cont, bb_meta);
+              break;
+#elif DBM_ARCH_RISCV64
+            case uncond_imm_riscv:
+            case uncond_reg_riscv:
+              is_taken = true;
+              break;
+            case cond_imm_riscv:
+              is_taken = interpret_condition(cont, (uintptr_t)write_p);
               break;
 #endif
             default:
