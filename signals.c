@@ -196,6 +196,11 @@ bool unlink_indirect_branch(dbm_code_cache_meta *bb_meta, void **o_write_p) {
   return true;
 }
 
+/**
+ * Get exit trap size.
+ * @param bb_meta Basic-Block meta data.
+ * @param fragment_id Code cache index of basic block.
+ */
 int get_direct_branch_exit_trap_sz(dbm_code_cache_meta *bb_meta, int fragment_id) {
   int sz;
   switch(bb_meta->exit_branch_type) {
@@ -222,6 +227,13 @@ int get_direct_branch_exit_trap_sz(dbm_code_cache_meta *bb_meta, int fragment_id
         sz = (bb_meta->branch_cache_status & BOTH_LINKED) ? 12 : 8;
       }
       break;
+#elif DBM_ARCH_RISCV64
+    case uncond_imm_riscv:
+      sz = 4;
+      break;
+    case cond_imm_riscv:
+      sz = (bb_meta->branch_cache_status & BOTH_LINKED) ? 12 : 8;
+      break;
 #endif
     default:
       while(1);
@@ -229,6 +241,13 @@ int get_direct_branch_exit_trap_sz(dbm_code_cache_meta *bb_meta, int fragment_id
   return sz;
 }
 
+/**
+ * Rewrite basic block exit code with traps for direct branches.
+ * @param bb_meta Basic-Block meta data.
+ * @param o_write_p Trap write location.
+ * @param fragment_id Code cache index of basic block.
+ * @param pc Start address of current translated basic block (TPC).
+ */
 bool unlink_direct_branch(dbm_code_cache_meta *bb_meta, void **o_write_p, int fragment_id, uintptr_t pc) {
   int offset = 0;
   bool is_thumb = false;
@@ -249,6 +268,8 @@ bool unlink_direct_branch(dbm_code_cache_meta *bb_meta, void **o_write_p, int fr
       }
 #elif __aarch64__
       decoder = (inst_decoder)a64_decode;
+#elif DBM_ARCH_RISCV64
+      decoder = (inst_decoder)riscv_decode;
 #endif
       int inst = decoder(write_p);
       if (inst == TRAP_INST_TYPE) {
@@ -270,6 +291,11 @@ bool unlink_direct_branch(dbm_code_cache_meta *bb_meta, void **o_write_p, int fr
   return true;
 }
 
+/**
+ * Unlink fragment with given ID.
+ * @param fragment_id Code cache index of basic block.
+ * @param pc Start address of current translated basic block (TPC).
+ */
 void unlink_fragment(int fragment_id, uintptr_t pc) {
   dbm_code_cache_meta *bb_meta;
 
@@ -287,6 +313,8 @@ void unlink_fragment(int fragment_id, uintptr_t pc) {
           type == uncond_blxi_thumb || type == uncond_blxi_arm) &&
   #elif __aarch64__
   while (type == uncond_imm_a64 &&
+  #elif DBM_ARCH_RISCV64
+  //TODO: [traces] while(type == uncond_imm_riscv &&
   #endif
          (bb_meta->branch_cache_status & BOTH_LINKED) == 0 &&
          fragment_id >= CODE_CACHE_SIZE &&
@@ -308,6 +336,8 @@ void unlink_fragment(int fragment_id, uintptr_t pc) {
     bb_meta = &current_thread->code_cache_meta[fragment_id];
     pc = bb_meta->tpc;
   }
+#elif DBM_ARCH_RISCV64
+  //TODO: [traces] Handle trace exit
 #endif
 
   void *write_p = bb_meta->exit_branch_addr;
@@ -318,6 +348,8 @@ void unlink_fragment(int fragment_id, uintptr_t pc) {
       bb_meta->exit_branch_type == uncond_reg_arm) {
 #elif __aarch64__
   if (bb_meta->exit_branch_type == uncond_branch_reg) {
+#elif DBM_ARCH_RISCV64
+  if (bb_meta->exit_branch_type == uncond_reg_riscv) {
 #endif
     if (!unlink_indirect_branch(bb_meta, &write_p)) {
       return;
@@ -525,6 +557,12 @@ bool interpret_tbz(ucontext_t *cont, dbm_code_cache_meta *bb_meta) {
   #define direct_branch(write_p, target, cond) riscv_branch_imm_helper(write_p, target, false)
 #endif
 
+/**
+ * Restore saved basic block exit.
+ * @param thread_data Thread data.
+ * @param fragment_id Code cache index of basic block.
+ * @param o_write_p Start location of the basic block exit.
+ */
 #ifdef __arm__
 void restore_exit(dbm_thread *thread_data, int fragment_id, void **o_write_p, bool is_thumb) {
 #elif defined(__aarch64__) || defined(DBM_ARCH_RISCV64)
