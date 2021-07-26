@@ -593,9 +593,16 @@ void restore_ihl_regs(ucontext_t *cont) {
   cont->sp_field = (uintptr_t)sp;
 }
 
+/**
+ * Call dispatcher routine.
+ * @param thread_data Thread data.
+ * @param cont Signal context.
+ * @param target Target address.
+ */
 void sigret_dispatcher_call(dbm_thread *thread_data, ucontext_t *cont, uintptr_t target) {
   uintptr_t *sp = (uintptr_t *)cont->context_sp;
 
+#if defined(__arm__) || defined(__aarch64__)
 #ifdef __arm__
   sp -= DISP_SP_OFFSET / 4;
 #elif __aarch64__
@@ -607,6 +614,7 @@ void sigret_dispatcher_call(dbm_thread *thread_data, ucontext_t *cont, uintptr_t
   sp[2] = cont->context_reg(2);
   sp[3] = cont->context_reg(3);
 #endif
+// Set dispatcher parameters (target, source_index)
   cont->context_reg(0) = target;
   cont->context_reg(1) = 0;
   cont->context_pc = thread_data->dispatcher_addr;
@@ -614,7 +622,19 @@ void sigret_dispatcher_call(dbm_thread *thread_data, ucontext_t *cont, uintptr_t
   cont->context_reg(3) = cont->context_sp;
   cont->uc_mcontext.arm_cpsr &= ~CPSR_T;
 #endif
+#elif DBM_ARCH_RISCV64
+  // Save current registers a0 and a1
+  sp -= 2;
+  sp[0] = cont->context_reg(10);
+  sp[1] = cont->context_reg(11);
+  // Set dispatcher parameters (target, source_index)
+  cont->context_reg(10) = target;
+  cont->context_reg(11) = 0;
+  // Call dispatcher on signal return
+  cont->context_pc = thread_data->dispatcher_addr;
+#endif
 
+  // Update stack pointer
   cont->context_sp = (uintptr_t)sp;
 }
 
