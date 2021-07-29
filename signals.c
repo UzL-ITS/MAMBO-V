@@ -363,6 +363,10 @@ void unlink_fragment(int fragment_id, uintptr_t pc) {
   __clear_cache(start_addr, write_p);
 }
 
+/**
+ * Pop registers from stack at `send_self_signal` and set PC to SPC.
+ * @param cont Signal context containing register values.
+ */
 void translate_delayed_signal_frame(ucontext_t *cont) {
   uintptr_t *sp = (uintptr_t *)cont->sp_field;
 #ifdef __arm__
@@ -395,6 +399,24 @@ void translate_delayed_signal_frame(ucontext_t *cont) {
   cont->uc_mcontext.pc = sp[1];
   cont->uc_mcontext.regs[x0] = sp[4];
   cont->uc_mcontext.regs[x1] = sp[5];
+  sp += 6;
+#elif DBM_ARCH_RISCV64
+  /*
+  * Stack peek:
+  *              ┌───────┐
+  *        sp -> │ x17   │
+  *              │ TCP   ├ Translated target PC (next_addr)
+  *              │ SPC   ├ Original target PC (target)
+  *              │ x12   │
+  *              │ x11   ├ (Pushed by exit stub in scanner)
+  *              │ x10   ├ (Pushed by exit stub in scanner)
+  *              │.......│
+  */
+  cont->context_reg(17) = sp[0];
+  cont->context_reg(12) = sp[3];
+  cont->context_reg(11) = sp[4];
+  cont->context_reg(10) = sp[5];
+  cont->pc_field = sp[2];
   sp += 6;
 #endif
 
@@ -434,6 +456,12 @@ void translate_svc_frame(ucontext_t *cont) {
   cont->uc_mcontext.regs[x29] = sp[24];
   cont->uc_mcontext.regs[x30] = sp[25];
   sp += 26;
+#elif DBM_ARCH_RISCV64
+  for (int x = 1; x <= 31; x++) {
+    cont->context_reg(x) = sp[x-1]
+  }
+  cont->pc_field = sp[9]; // Get PC from x10
+  sp += 31;
 #endif
   cont->sp_field = (uintptr_t)sp;
 }
@@ -578,6 +606,10 @@ void restore_exit(dbm_thread *thread_data, int fragment_id, void **o_write_p) {
   *o_write_p = write_p;
 }
 
+/**
+ * Restore scratch registers.
+ * @param cont Signal context containing register values.
+ */
 void restore_ihl_regs(ucontext_t *cont) {
   uintptr_t *sp = (uintptr_t *)cont->sp_field;
 
@@ -587,6 +619,9 @@ void restore_ihl_regs(ucontext_t *cont) {
 #elif __aarch64__
   cont->context_reg(0) = sp[0];
   cont->context_reg(1) = sp[1];
+#elif DBM_ARCH_RISCV64
+  cont->context_reg(10) = sp[0];
+  cont->context_reg(11) = sp[1];
 #endif
   sp += 2;
 
