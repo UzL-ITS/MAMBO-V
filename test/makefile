@@ -20,6 +20,7 @@ CFLAGS+=-std=gnu99
 LDFLAGS+=-lelf -lz -lpthread
 UNITY_CFLAGS=-Iunity
 UNITY_DEFINE=-DUNITY_OUTPUT_COLOR
+LDFLAGS_IGNORE_REFERENCE=-Wl,--unresolved-symbols=ignore-in-object-files
 
 .PHONY: clean clean_mocks
 
@@ -49,8 +50,12 @@ test_scanner_riscv: $(PIE_ENCODER) $(PIE_DECODER) test_scanner_riscv.c ../arch/r
 	./$@
 
 test_dispatcher_riscv: $(PIE_ENCODER) $(PIE_DECODER) test_dispatcher_riscv.c ../arch/riscv/dispatcher_riscv.c ../arch/riscv/scanner_riscv.c unity/unity.c
-	$(CC) -g $(CFLAGS) $(UNITY_CFLAGS) $(PIE_ENCODER) $(PIE_DECODER) test_dispatcher_riscv.c ../arch/riscv/dispatcher_riscv.c ../arch/riscv/scanner_riscv.c unity/unity.c $(LDFLAGS) $(OPTS) $(UNITY_DEFINE) -DMODULE_ONLY -o $@
+	$(CC) -g $(CFLAGS) $(UNITY_CFLAGS) $^ $(LDFLAGS) $(OPTS) $(UNITY_DEFINE) -DMODULE_ONLY -o $@
+	./$@
+
+test_util: test_util.c ../util.S ../arch/riscv/dispatcher_riscv.s unity/unity.c
+	$(CC) -g $(CFLAGS) $(UNITY_CFLAGS) $^ $(LDFLAGS) $(OPTS) $(UNITY_DEFINE) -DMODULE_ONLY -o $@ $(LDFLAGS_IGNORE_REFERENCE)
 	./$@
 
 clean:
-	rm -f mmap_munmap mprotect_exec self_modifying signals hw_div load_store test_elf_loader test_scanner_riscv
+	rm -f mmap_munmap mprotect_exec self_modifying signals hw_div load_store test_elf_loader test_scanner_riscv test_dispatcher_riscv test_util
