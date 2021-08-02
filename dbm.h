@@ -64,7 +64,6 @@
 #else
   #define MAX_BRANCH_RANGE (16*1024*1024)
 #endif
-#ifdef DBM_ARCH_RISCV64
 #define TRACE_CACHE_SIZE (MAX_BRANCH_RANGE - (CODE_CACHE_SIZE*BASIC_BLOCK_SIZE * ARCH_BYTE_ALIGN))
 #define TRACE_LIMIT_OFFSET (2*1024)
 
@@ -150,7 +149,9 @@ typedef struct {
 
 typedef struct {
   dbm_block blocks[CODE_CACHE_SIZE];
+#ifdef DBM_TRACES
   uint8_t  traces[TRACE_CACHE_SIZE];
+#endif
 } dbm_code_cache;
 
 #define FALLTHROUGH_LINKED (1 << 0)
