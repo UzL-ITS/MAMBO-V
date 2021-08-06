@@ -303,6 +303,7 @@ r:
         LI      x17, 131
         ECALL
 
+.global send_self_signal
 send_self_signal:
         LD      x17, 0(sp)
         LD      x12, 24(sp)

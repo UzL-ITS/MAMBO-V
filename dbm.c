@@ -243,10 +243,18 @@ uintptr_t scan(dbm_thread *thread_data, uint16_t *address, int basic_block) {
   inst_set inst_type = RISCV64_INST;
 #endif
   bool stop = true;
+  mambo_cond cond;
+#ifdef DBM_ARCH_RISCV64
+  cond.cond = AL;
+  cond.r1 = x0;
+  cond.r2 = x0;
+#else
+  cond = -1;
+#endif
   mambo_deliver_callbacks_code(POST_BB_C, thread_data, mambo_bb, basic_block, inst_type,
-                               -1, -1, address, (void *)(block_address & (~THUMB)), NULL, &stop);
+                               -1, cond, address, (void *)(block_address & (~THUMB)), NULL, &stop);
   mambo_deliver_callbacks_code(POST_FRAGMENT_C, thread_data, mambo_bb, basic_block, inst_type,
-                               -1, -1, address, (void *)(block_address & (~THUMB)), NULL, &stop);
+                               -1, cond, address, (void *)(block_address & (~THUMB)), NULL, &stop);
   assert(stop == true);
 
   // Flush modified instructions from caches
@@ -614,6 +622,7 @@ void notify_vm_op(vm_op_t op, uintptr_t addr, size_t size, int prot, int flags, 
 #endif
 }
 
+#ifndef DBM_TEST
 void main(int argc, char **argv, char **envp) {
   Elf *elf = NULL;
   
@@ -671,4 +680,4 @@ void main(int argc, char **argv, char **envp) {
   #define ARGDIFF 2
   elf_run(block_address, argv[1], argc-ARGDIFF, &argv[ARGDIFF], envp, &auxv);
 }
-
+#endif

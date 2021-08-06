@@ -344,7 +344,7 @@ ssize_t interval_map_delete(interval_map *imap, uintptr_t start, uintptr_t end) 
   #define first_reg x0
   #define last_reg sp
 #endif
-#ifdef DBM_ARCH_RISCV
+#ifdef DBM_ARCH_RISCV64
   #define first_reg x1
   #define last_reg x31
 #endif
@@ -423,7 +423,7 @@ extern void __try_memcpy_error();
 #elif __aarch64__
   #define pc_reg uc_mcontext.pc
 #endif
-#ifdef DBM_ARCH_RISCV
+#ifdef DBM_ARCH_RISCV64
   #define pc_reg uc_mcontext.__gregs[REG_PC]
 #endif
 void memcpy_fault(int i, siginfo_t *info, void *ctx_ptr) {

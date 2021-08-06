@@ -21,6 +21,9 @@
 #define __SCANNER_COMMON_H__
 
 #include "scanner_public.h"
+#ifdef DBM_ARCH_RISCV64
+#include "pie/pie-riscv-decoder.h"
+#endif
 
 #define SETUP (1 << 0)
 #define REPLACE_TARGET (1 << 1)

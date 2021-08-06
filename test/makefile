@@ -16,6 +16,7 @@ ifeq ($(ARCH),riscv64)
 	OPTS+=-DDBM_ARCH_RISCV64
 endif
 
+OPTS+=-DDBM_TEST
 CFLAGS+=-std=gnu99
 LDFLAGS+=-lelf -lz -lpthread
 UNITY_CFLAGS=-Iunity
