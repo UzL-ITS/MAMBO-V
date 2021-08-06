@@ -45,6 +45,12 @@
 #include "pie/pie-riscv-field-decoder.h"
 #endif
 
+#ifdef DEBUG
+	#define debug(...) fprintf(stderr, __VA_ARGS__)
+#else
+	#define debug(...)
+#endif
+
 #define self_send_signal_offset        ((uintptr_t)send_self_signal - (uintptr_t)&start_of_dispatcher_s)
 #define syscall_wrapper_svc_offset     ((uintptr_t)syscall_wrapper_svc - (uintptr_t)&start_of_dispatcher_s)
 
@@ -150,7 +156,7 @@ static void riscv_mret (uint16_t **address)
 /**
  * Search for the indirect basic block exit and replace it with a trap to cause 
  * UNLINK_SIGNAL.
- * @param bb_meta Basic-Block meta data.
+ * @param bb_meta Basic-Block meta data. (used by arm only)
  * @param o_write_p Starting point of search for exit instruction.
  */
 bool unlink_indirect_branch(dbm_code_cache_meta *bb_meta, void **o_write_p) {
@@ -180,7 +186,7 @@ bool unlink_indirect_branch(dbm_code_cache_meta *bb_meta, void **o_write_p) {
 #ifndef DBM_ARCH_RISCV64
   while(inst != br_inst_type && inst != trap_inst_type) {
 #else
-  while(inst != RISCV_C_JR && inst != RISCV_JALR && trap_inst_type) {
+  while(inst != RISCV_C_JR && inst != RISCV_JALR && inst != trap_inst_type) {
 #endif
     write_p += inst_size(inst, is_thumb);
     inst = decoder(write_p);
@@ -232,6 +238,7 @@ int get_direct_branch_exit_trap_sz(dbm_code_cache_meta *bb_meta, int fragment_id
       sz = 4;
       break;
     case cond_imm_riscv:
+      // TODO: [traces] 8 for trace fragment
       sz = (bb_meta->branch_cache_status & BOTH_LINKED) ? 12 : 8;
       break;
 #endif
@@ -314,7 +321,7 @@ void unlink_fragment(int fragment_id, uintptr_t pc) {
   #elif __aarch64__
   while (type == uncond_imm_a64 &&
   #elif DBM_ARCH_RISCV64
-  //TODO: [traces] while(type == uncond_imm_riscv &&
+  // TODO: [traces] while(type == uncond_imm_riscv &&
   #endif
          (bb_meta->branch_cache_status & BOTH_LINKED) == 0 &&
          fragment_id >= CODE_CACHE_SIZE &&
@@ -327,7 +334,7 @@ void unlink_fragment(int fragment_id, uintptr_t pc) {
   }
 #else
   bb_meta = &current_thread->code_cache_meta[fragment_id];
-#endif
+#endif // DBM_TRACES
 
 #ifdef __aarch64__
   // we don't try to unlink trace exits, we unlink the fragment they jump to
@@ -337,7 +344,7 @@ void unlink_fragment(int fragment_id, uintptr_t pc) {
     pc = bb_meta->tpc;
   }
 #elif DBM_ARCH_RISCV64
-  //TODO: [traces] Handle trace exit
+  // TODO: [traces] Handle trace exit
 #endif
 
   void *write_p = bb_meta->exit_branch_addr;
@@ -458,7 +465,7 @@ void translate_svc_frame(ucontext_t *cont) {
   sp += 26;
 #elif DBM_ARCH_RISCV64
   for (int x = 1; x <= 31; x++) {
-    cont->context_reg(x) = sp[x-1]
+    cont->context_reg(x) = sp[x-1];
   }
   cont->pc_field = sp[9]; // Get PC from x10
   sp += 31;
@@ -466,7 +473,7 @@ void translate_svc_frame(ucontext_t *cont) {
   cont->sp_field = (uintptr_t)sp;
 }
 
-#ifdef defined(__arm__) || defined(__aarch64__)
+#if defined(__arm__) || defined(__aarch64__)
 #define PSTATE_N (1 << 31)
 #define PSTATE_Z (1 << 30)
 #define PSTATE_C (1 << 29)
@@ -581,7 +588,7 @@ bool interpret_tbz(ucontext_t *cont, dbm_code_cache_meta *bb_meta) {
                                                 }
 #elif __aarch64__
   #define direct_branch(write_p, target, cond)  a64_b_helper((write_p), (target) + 4)
-#elif DBM_ARCH_RISCV
+#elif DBM_ARCH_RISCV64
   #define direct_branch(write_p, target, cond) riscv_branch_imm_helper(write_p, target, false)
 #endif
 
@@ -750,7 +757,7 @@ uintptr_t signal_dispatcher(int i, siginfo_t *info, void *context) {
         }
 #elif __aarch64__
         a64_HVC_decode_fields((uint32_t *)pc, &imm);
-#elif DBM_ARCH_RISCV
+#elif DBM_ARCH_RISCV64
         if (*(uint32_t *)pc == RISCV_SRET_CODE)
           imm = SIGNAL_TRAP_IB;
         else if (*(uint32_t *)pc == RISCV_MRET_CODE)

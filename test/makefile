@@ -57,5 +57,8 @@ test_util: test_util.c ../util.S ../arch/riscv/dispatcher_riscv.s unity/unity.c
 	$(CC) -g $(CFLAGS) $(UNITY_CFLAGS) $^ $(LDFLAGS) $(OPTS) $(UNITY_DEFINE) -DMODULE_ONLY -o $@ $(LDFLAGS_IGNORE_REFERENCE)
 	./$@
 
+test_signals: $(PIE_ENCODER) $(PIE_DECODER) test_signals.c ../dbm.c ../signals.c unity/unity.c
+	$(CC) -g $(CFLAGS) $(UNITY_CFLAGS) $(PIE_ENCODER) $(PIE_DECODER) test_signals.c ../common.c ../dbm.c ../dispatcher.c ../api/internal.c ../arch/riscv/dispatcher_riscv.c ../arch/riscv/dispatcher_riscv.s ../arch/riscv/scanner_riscv.c ../util.S unity/unity.c $(LDFLAGS) $(OPTS) $(UNITY_DEFINE) -o $@ $(LDFLAGS_IGNORE_REFERENCE)
+
 clean:
 	rm -f mmap_munmap mprotect_exec self_modifying signals hw_div load_store test_elf_loader test_scanner_riscv test_dispatcher_riscv test_util
