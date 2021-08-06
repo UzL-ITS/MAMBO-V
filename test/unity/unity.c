@@ -1784,6 +1784,8 @@ void UnityFail(const char* msg, const UNITY_LINE_TYPE line)
     if (msg != NULL)
     {
         UNITY_OUTPUT_CHAR(':');
+        UNITY_OUTPUT_CHAR('\n');
+        UNITY_OUTPUT_CHAR('\t');
 
 #ifdef UNITY_PRINT_TEST_CONTEXT
         UNITY_PRINT_TEST_CONTEXT();
