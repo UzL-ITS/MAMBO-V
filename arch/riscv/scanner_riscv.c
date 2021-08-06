@@ -478,18 +478,7 @@ void pass1_riscv(uint16_t *read_address, branch_type *bb_type)
 	}
 }
 
-/**
- * Extract \c mambo_cond data from raw branch instruction.
- * @param inst Instruction to expect at read address.
- * @param read_address Address to read the code from.
- * @param cond Pointer to \c mambo_cond where the results are stored.
- * @param target Pointer where to save the target address of the branch. (Can be
- * 		NULL if the target address should not be saved).
- * @return 0 if data extracted successfully, non-zero if the given instruction is not
- * 		a branch instruction B[EQ | NE | LT{U} | GE{U}] or [C.BEQZ | C.BNEZ].
- * @see mambo_cond
- */
-static int riscv_get_mambo_cond(riscv_instruction inst, uint16_t *read_address, 
+int riscv_get_mambo_cond(riscv_instruction inst, uint16_t *read_address, 
 	mambo_cond *cond, uint64_t *target)
 {
 	unsigned int immhi, immlo;

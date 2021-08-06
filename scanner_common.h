@@ -244,6 +244,20 @@ void riscv_inline_hash_lookup(dbm_thread *thread_data, int basic_block,
  */
 size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_block,
 	cc_type type, uint16_t *write_p);
+
+/**
+ * Extract \c mambo_cond data from raw branch instruction.
+ * @param inst Instruction to expect at read address.
+ * @param read_address Address to read the code from.
+ * @param cond Pointer to \c mambo_cond where the results are stored.
+ * @param target Pointer where to save the target address of the branch. (Can be
+ * 		NULL if the target address should not be saved).
+ * @return 0 if data extracted successfully, non-zero if the given instruction is not
+ * 		a branch instruction B[EQ | NE | LT{U} | GE{U}] or [C.BEQZ | C.BNEZ].
+ * @see mambo_cond
+ */
+int riscv_get_mambo_cond(riscv_instruction inst, uint16_t *read_address, 
+	mambo_cond *cond, uint64_t *target);
 #endif
 
 extern void inline_hash_lookup();

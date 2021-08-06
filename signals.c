@@ -39,12 +39,27 @@
 #include "pie/pie-a64-decoder.h"
 #include "pie/pie-a64-field-decoder.h"
 #endif
+#ifdef DBM_ARCH_RISCV64
+#include "pie/pie-riscv-encoder.h"
+#include "pie/pie-riscv-decoder.h"
+#include "pie/pie-riscv-field-decoder.h"
+#endif
+
+#ifdef DEBUG
+	#define debug(...) fprintf(stderr, __VA_ARGS__)
+#else
+	#define debug(...)
+#endif
 
 #define self_send_signal_offset        ((uintptr_t)send_self_signal - (uintptr_t)&start_of_dispatcher_s)
 #define syscall_wrapper_svc_offset     ((uintptr_t)syscall_wrapper_svc - (uintptr_t)&start_of_dispatcher_s)
 
 #define SIGNAL_TRAP_IB (0x94)
 #define SIGNAL_TRAP_DB (0x95)
+#ifdef DBM_ARCH_RISCV64
+  #define RISCV_SRET_CODE 0x10200073
+  #define RISCV_MRET_CODE 0x30200073
+#endif
 
 #ifdef __arm__
   #define pc_field uc_mcontext.arm_pc
@@ -52,6 +67,9 @@
 #elif __aarch64__
   #define pc_field uc_mcontext.pc
   #define sp_field uc_mcontext.sp
+#elif DBM_ARCH_RISCV64
+  #define pc_field uc_mcontext.__gregs[REG_PC]
+  #define sp_field uc_mcontext.__gregs[REG_SP]
 #endif
 
 typedef struct {
@@ -104,12 +122,43 @@ typedef int (*inst_decoder)(void *);
                               write_p += 4; \
                             }
   #define TRAP_INST_TYPE ((is_thumb) ? THUMB_UDF16 : ARM_UDF)
-#elif __aarch64__
+#elif __aarch64__d
   #define inst_size(inst, is_thumb) (4)
   #define write_trap(code) a64_HVC((uint32_t **)&write_p, (code)); write_p += 4;
   #define TRAP_INST_TYPE (A64_HVC)
+#elif DBM_ARCH_RISCV64
+  #define inst_size(inst, is_thumb) (inst <= 39 ? INST_16BIT : INST_32BIT)
+  #define write_trap(code) if (code == SIGNAL_TRAP_IB) { \
+                             riscv_sret((uint16_t **)&write_p); /* SRET for indirect branch */ \
+                           } else { \
+                             riscv_mret((uint16_t **)&write_p); /* MRET for direct branch */ \
+                           } \
+                           write_p += INST_32BIT
+  #define TRAP_INST_TYPE (RISCV_INVALID) // The decoder does not know the SRET or MRET instructions
 #endif
 
+#ifdef DBM_ARCH_RISCV64
+static void riscv_sret (uint16_t **address)
+{
+	uint32_t inst = RISCV_SRET_CODE;
+	*(*address + 1) = (uint16_t)(inst >> 16);
+	*(*address) = (uint16_t)(inst & 0xffff);
+}
+
+static void riscv_mret (uint16_t **address)
+{
+	uint32_t inst = RISCV_MRET_CODE;
+	*(*address + 1) = (uint16_t)(inst >> 16);
+	*(*address) = (uint16_t)(inst & 0xffff);
+}
+#endif
+
+/**
+ * Search for the indirect basic block exit and replace it with a trap to cause 
+ * UNLINK_SIGNAL.
+ * @param bb_meta Basic-Block meta data. (used by arm only)
+ * @param o_write_p Starting point of search for exit instruction.
+ */
 bool unlink_indirect_branch(dbm_code_cache_meta *bb_meta, void **o_write_p) {
   int br_inst_type, trap_inst_type;
   inst_decoder decoder;
@@ -127,11 +176,18 @@ bool unlink_indirect_branch(dbm_code_cache_meta *bb_meta, void **o_write_p) {
 #elif __aarch64__
   br_inst_type = A64_BR;
   decoder = (inst_decoder)a64_decode;
+#elif DBM_ARCH_RISCV64
+  decoder = (inst_decoder)riscv_decode;
 #endif
   trap_inst_type = TRAP_INST_TYPE;
 
+  // Search for br_inst_type instruction
   int inst = decoder(write_p);
+#ifndef DBM_ARCH_RISCV64
   while(inst != br_inst_type && inst != trap_inst_type) {
+#else
+  while(inst != RISCV_C_JR && inst != RISCV_JALR && inst != trap_inst_type) {
+#endif
     write_p += inst_size(inst, is_thumb);
     inst = decoder(write_p);
   }
@@ -140,11 +196,17 @@ bool unlink_indirect_branch(dbm_code_cache_meta *bb_meta, void **o_write_p) {
     return false;
   }
 
+  // Write trap to cause UNLINK_SIGNAL
   write_trap(SIGNAL_TRAP_IB);
   *o_write_p = write_p;
   return true;
 }
 
+/**
+ * Get exit trap size.
+ * @param bb_meta Basic-Block meta data.
+ * @param fragment_id Code cache index of basic block.
+ */
 int get_direct_branch_exit_trap_sz(dbm_code_cache_meta *bb_meta, int fragment_id) {
   int sz;
   switch(bb_meta->exit_branch_type) {
@@ -171,6 +233,14 @@ int get_direct_branch_exit_trap_sz(dbm_code_cache_meta *bb_meta, int fragment_id
         sz = (bb_meta->branch_cache_status & BOTH_LINKED) ? 12 : 8;
       }
       break;
+#elif DBM_ARCH_RISCV64
+    case uncond_imm_riscv:
+      sz = 4;
+      break;
+    case cond_imm_riscv:
+      // TODO: [traces] 8 for trace fragment
+      sz = (bb_meta->branch_cache_status & BOTH_LINKED) ? 12 : 8;
+      break;
 #endif
     default:
       while(1);
@@ -178,6 +248,13 @@ int get_direct_branch_exit_trap_sz(dbm_code_cache_meta *bb_meta, int fragment_id
   return sz;
 }
 
+/**
+ * Rewrite basic block exit code with traps for direct branches.
+ * @param bb_meta Basic-Block meta data.
+ * @param o_write_p Trap write location.
+ * @param fragment_id Code cache index of basic block.
+ * @param pc Start address of current translated basic block (TPC).
+ */
 bool unlink_direct_branch(dbm_code_cache_meta *bb_meta, void **o_write_p, int fragment_id, uintptr_t pc) {
   int offset = 0;
   bool is_thumb = false;
@@ -198,6 +275,8 @@ bool unlink_direct_branch(dbm_code_cache_meta *bb_meta, void **o_write_p, int fr
       }
 #elif __aarch64__
       decoder = (inst_decoder)a64_decode;
+#elif DBM_ARCH_RISCV64
+      decoder = (inst_decoder)riscv_decode;
 #endif
       int inst = decoder(write_p);
       if (inst == TRAP_INST_TYPE) {
@@ -219,6 +298,11 @@ bool unlink_direct_branch(dbm_code_cache_meta *bb_meta, void **o_write_p, int fr
   return true;
 }
 
+/**
+ * Unlink fragment with given ID.
+ * @param fragment_id Code cache index of basic block.
+ * @param pc Start address of current translated basic block (TPC).
+ */
 void unlink_fragment(int fragment_id, uintptr_t pc) {
   dbm_code_cache_meta *bb_meta;
 
@@ -236,6 +320,8 @@ void unlink_fragment(int fragment_id, uintptr_t pc) {
           type == uncond_blxi_thumb || type == uncond_blxi_arm) &&
   #elif __aarch64__
   while (type == uncond_imm_a64 &&
+  #elif DBM_ARCH_RISCV64
+  // TODO: [traces] while(type == uncond_imm_riscv &&
   #endif
          (bb_meta->branch_cache_status & BOTH_LINKED) == 0 &&
          fragment_id >= CODE_CACHE_SIZE &&
@@ -248,7 +334,7 @@ void unlink_fragment(int fragment_id, uintptr_t pc) {
   }
 #else
   bb_meta = &current_thread->code_cache_meta[fragment_id];
-#endif
+#endif // DBM_TRACES
 
 #ifdef __aarch64__
   // we don't try to unlink trace exits, we unlink the fragment they jump to
@@ -257,6 +343,8 @@ void unlink_fragment(int fragment_id, uintptr_t pc) {
     bb_meta = &current_thread->code_cache_meta[fragment_id];
     pc = bb_meta->tpc;
   }
+#elif DBM_ARCH_RISCV64
+  // TODO: [traces] Handle trace exit
 #endif
 
   void *write_p = bb_meta->exit_branch_addr;
@@ -267,6 +355,8 @@ void unlink_fragment(int fragment_id, uintptr_t pc) {
       bb_meta->exit_branch_type == uncond_reg_arm) {
 #elif __aarch64__
   if (bb_meta->exit_branch_type == uncond_branch_reg) {
+#elif DBM_ARCH_RISCV64
+  if (bb_meta->exit_branch_type == uncond_reg_riscv) {
 #endif
     if (!unlink_indirect_branch(bb_meta, &write_p)) {
       return;
@@ -280,6 +370,10 @@ void unlink_fragment(int fragment_id, uintptr_t pc) {
   __clear_cache(start_addr, write_p);
 }
 
+/**
+ * Pop registers from stack at `send_self_signal` and set PC to SPC.
+ * @param cont Signal context containing register values.
+ */
 void translate_delayed_signal_frame(ucontext_t *cont) {
   uintptr_t *sp = (uintptr_t *)cont->sp_field;
 #ifdef __arm__
@@ -312,6 +406,24 @@ void translate_delayed_signal_frame(ucontext_t *cont) {
   cont->uc_mcontext.pc = sp[1];
   cont->uc_mcontext.regs[x0] = sp[4];
   cont->uc_mcontext.regs[x1] = sp[5];
+  sp += 6;
+#elif DBM_ARCH_RISCV64
+  /*
+  * Stack peek:
+  *              ┌───────┐
+  *        sp -> │ x17   │
+  *              │ TCP   ├ Translated target PC (next_addr)
+  *              │ SPC   ├ Original target PC (target)
+  *              │ x12   │
+  *              │ x11   ├ (Pushed by exit stub in scanner)
+  *              │ x10   ├ (Pushed by exit stub in scanner)
+  *              │.......│
+  */
+  cont->context_reg(17) = sp[0];
+  cont->context_reg(12) = sp[3];
+  cont->context_reg(11) = sp[4];
+  cont->context_reg(10) = sp[5];
+  cont->pc_field = sp[2];
   sp += 6;
 #endif
 
@@ -351,10 +463,17 @@ void translate_svc_frame(ucontext_t *cont) {
   cont->uc_mcontext.regs[x29] = sp[24];
   cont->uc_mcontext.regs[x30] = sp[25];
   sp += 26;
+#elif DBM_ARCH_RISCV64
+  for (int x = 1; x <= 31; x++) {
+    cont->context_reg(x) = sp[x-1];
+  }
+  cont->pc_field = sp[9]; // Get PC from x10
+  sp += 31;
 #endif
   cont->sp_field = (uintptr_t)sp;
 }
 
+#if defined(__arm__) || defined(__aarch64__)
 #define PSTATE_N (1 << 31)
 #define PSTATE_Z (1 << 30)
 #define PSTATE_C (1 << 29)
@@ -398,6 +517,48 @@ bool interpret_condition(uint32_t pstate, mambo_cond cond) {
 
   return state;
 }
+#elif DBM_ARCH_RISCV64
+/**
+ * Test if condition in conditional branch instruction is true or false.
+ * @param context Userlevel context containing register values. @see ucontext_t
+ * @param write_p Location of the linked conditional branch instruction.
+ * @return Whether conditional branch is would be taken or not.
+ */
+bool interpret_condition(ucontext_t *context, uintptr_t write_p)
+{
+  mambo_cond cond;
+  riscv_get_mambo_cond(riscv_decode((uint16_t *)write_p), (uint16_t *)write_p, &cond, NULL);
+
+  // Load values to compare
+  int v1 = (cond.r1 == x0) ? 0 : context->uc_mcontext.__gregs[cond.r1];
+  int v2 = (cond.r2 == x0) ? 0 : context->uc_mcontext.__gregs[cond.r2];
+
+  // Check if condition is true
+  switch (cond.cond) {
+  case EQ:
+    return (v1 == v2);
+    break;
+  case NE:
+    return (v1 != v2);
+    break;
+  case LT:
+    return (v1 < v2);
+    break;
+  case GE:
+    return (v1 >= v2);
+    break;
+  case LTU:
+    return ((unsigned int)v1 < (unsigned int)v2);
+    break;
+  case GEU:
+    return ((unsigned int)v1 >= (unsigned int)v2);
+    break;
+  
+  default:
+    return true;
+  }
+}
+#endif
 
 #ifdef __aarch64__
 bool interpret_cbz(ucontext_t *cont, dbm_code_cache_meta *bb_meta) {
@@ -421,17 +582,25 @@ bool interpret_tbz(ucontext_t *cont, dbm_code_cache_meta *bb_meta) {
 
 #ifdef __arm__
   #define direct_branch(write_p, target, cond)  if (is_thumb) { \
-                                                  thumb_b32_helper((write_p), (target)); \
+                                                  thumb_b32_helper((write_p), (target)) \
                                                 } else { \
-                                                  arm_b32_helper((write_p), (target), cond); \
+                                                  arm_b32_helper((write_p), (target), cond) \
                                                 }
 #elif __aarch64__
-  #define direct_branch(write_p, target, cond)  a64_b_helper((write_p), (target) + 4);
+  #define direct_branch(write_p, target, cond)  a64_b_helper((write_p), (target) + 4)
+#elif DBM_ARCH_RISCV64
+  #define direct_branch(write_p, target, cond) riscv_branch_imm_helper(write_p, target, false)
 #endif
 
+/**
+ * Restore saved basic block exit.
+ * @param thread_data Thread data.
+ * @param fragment_id Code cache index of basic block.
+ * @param o_write_p Start location of the basic block exit.
+ */
 #ifdef __arm__
 void restore_exit(dbm_thread *thread_data, int fragment_id, void **o_write_p, bool is_thumb) {
-#elif __aarch64__
+#elif defined(__aarch64__) || defined(DBM_ARCH_RISCV64)
 void restore_exit(dbm_thread *thread_data, int fragment_id, void **o_write_p) {
 #endif
   void *write_p = *o_write_p;
@@ -444,6 +613,10 @@ void restore_exit(dbm_thread *thread_data, int fragment_id, void **o_write_p) {
   *o_write_p = write_p;
 }
 
+/**
+ * Restore scratch registers.
+ * @param cont Signal context containing register values.
+ */
 void restore_ihl_regs(ucontext_t *cont) {
   uintptr_t *sp = (uintptr_t *)cont->sp_field;
 
@@ -453,15 +626,25 @@ void restore_ihl_regs(ucontext_t *cont) {
 #elif __aarch64__
   cont->context_reg(0) = sp[0];
   cont->context_reg(1) = sp[1];
+#elif DBM_ARCH_RISCV64
+  cont->context_reg(10) = sp[0];
+  cont->context_reg(11) = sp[1];
 #endif
   sp += 2;
 
   cont->sp_field = (uintptr_t)sp;
 }
 
+/**
+ * Call dispatcher routine.
+ * @param thread_data Thread data.
+ * @param cont Signal context.
+ * @param target Target address.
+ */
 void sigret_dispatcher_call(dbm_thread *thread_data, ucontext_t *cont, uintptr_t target) {
   uintptr_t *sp = (uintptr_t *)cont->context_sp;
 
+#if defined(__arm__) || defined(__aarch64__)
 #ifdef __arm__
   sp -= DISP_SP_OFFSET / 4;
 #elif __aarch64__
@@ -473,6 +656,7 @@ void sigret_dispatcher_call(dbm_thread *thread_data, ucontext_t *cont, uintptr_t
   sp[2] = cont->context_reg(2);
   sp[3] = cont->context_reg(3);
 #endif
+// Set dispatcher parameters (target, source_index)
   cont->context_reg(0) = target;
   cont->context_reg(1) = 0;
   cont->context_pc = thread_data->dispatcher_addr;
@@ -480,7 +664,19 @@ void sigret_dispatcher_call(dbm_thread *thread_data, ucontext_t *cont, uintptr_t
   cont->context_reg(3) = cont->context_sp;
   cont->uc_mcontext.arm_cpsr &= ~CPSR_T;
 #endif
+#elif DBM_ARCH_RISCV64
+  // Save current registers a0 and a1
+  sp -= 2;
+  sp[0] = cont->context_reg(10);
+  sp[1] = cont->context_reg(11);
+  // Set dispatcher parameters (target, source_index)
+  cont->context_reg(10) = target;
+  cont->context_reg(11) = 0;
+  // Call dispatcher on signal return
+  cont->context_pc = thread_data->dispatcher_addr;
+#endif
 
+  // Update stack pointer
   cont->context_sp = (uintptr_t)sp;
 }
 
@@ -496,6 +692,10 @@ void sigret_dispatcher_call(dbm_thread *thread_data, ucontext_t *cont, uintptr_t
 #elif __aarch64__
   #define restore_ihl_inst(addr) a64_BR((uint32_t **)&addr, x0); \
                                 __clear_cache((void *)addr, (void *)addr + 4);
+
+#elif DBM_ARCH_RISCV64
+  #define restore_ihl_inst(addr) riscv_jalr((uint16_t **)&addr, x0, x10, 0); \
+                                 __clear_cache((void *)addr, (void *)addr + INST_32BIT)
 #endif
 
 /* If type == indirect && pc >= exit, read the pc and deliver the signal */
@@ -557,6 +757,13 @@ uintptr_t signal_dispatcher(int i, siginfo_t *info, void *context) {
         }
 #elif __aarch64__
         a64_HVC_decode_fields((uint32_t *)pc, &imm);
+#elif DBM_ARCH_RISCV64
+        if (*(uint32_t *)pc == RISCV_SRET_CODE)
+          imm = SIGNAL_TRAP_IB;
+        else if (*(uint32_t *)pc == RISCV_MRET_CODE)
+          imm = SIGNAL_TRAP_DB;
+        else
+          imm = 0;
 #endif
         if (imm == SIGNAL_TRAP_IB) {
           restore_ihl_inst(pc);
@@ -568,6 +775,8 @@ uintptr_t signal_dispatcher(int i, siginfo_t *info, void *context) {
           target = regs[rn];
 #elif __aarch64__
           target = cont->uc_mcontext.regs[rn];
+#elif DBM_ARCH_RISCV64
+          target = cont->uc_mcontext.__gregs[rn];
 #endif
           restore_ihl_regs(cont);
           sigret_dispatcher_call(current_thread, cont, target);
@@ -577,7 +786,7 @@ uintptr_t signal_dispatcher(int i, siginfo_t *info, void *context) {
           void *start_addr = write_p;
 #ifdef __arm__
           restore_exit(current_thread, fragment_id, &write_p, is_thumb);
-#elif __aarch64__
+#elif defined(__aarch64__) || defined(DBM_ARCH_RISCV64)
           restore_exit(current_thread, fragment_id, &write_p);
 #endif
           __clear_cache(start_addr, write_p);
@@ -606,6 +815,14 @@ uintptr_t signal_dispatcher(int i, siginfo_t *info, void *context) {
               break;
             case tbz_a64:
               is_taken = interpret_tbz(cont, bb_meta);
+              break;
+#elif DBM_ARCH_RISCV64
+            case uncond_imm_riscv:
+            case uncond_reg_riscv:
+              is_taken = true;
+              break;
+            case cond_imm_riscv:
+              is_taken = interpret_condition(cont, (uintptr_t)write_p);
               break;
 #endif
             default:
