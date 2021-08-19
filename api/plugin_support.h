@@ -101,8 +101,8 @@ typedef enum {
   BRANCH_INDIRECT = (1 << 2),
   BRANCH_RETURN = (1 << 3),
   BRANCH_COND = (1 << 4),
-  BRANCH_COND_PSR = (1 << 5),
-  BRANCH_COND_CBZ = (1 << 6),
+  BRANCH_COND_PSR = (1 << 5), // ARM-only
+  BRANCH_COND_CBZ = (1 << 6), // ARM-only
   BRANCH_COND_TBZ = (1 << 7), // A64-only
   BRANCH_COND_IT = (1 << 8),  // T32-only
   BRANCH_CALL = (1 << 9),

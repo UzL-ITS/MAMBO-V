@@ -14,8 +14,6 @@
 	#define debug(...)
 #endif
 
-#define invert_cond(cond) cond ^ 1
-
 void insert_cond_exit_branch(dbm_code_cache_meta *bb_meta, uint16_t **write_p, 
 	mambo_cond *cond)
 {
