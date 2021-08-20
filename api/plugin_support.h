@@ -195,9 +195,44 @@ bool mambo_is_cond(mambo_context *ctx);
 mambo_cond mambo_get_cond(mambo_context *ctx);
 mambo_cond mambo_get_inverted_cond(mambo_context *ctx, mambo_cond cond);
 void mambo_replace_inst(mambo_context *ctx);
+
+/**
+ * Returns whether the current instruction is a load instruction or not.
+ * @param ctx MAMBO context.
+ * @return Whether the current instruction is a load instruction or not.
+ */
 bool mambo_is_load(mambo_context *ctx);
+
+/**
+ * Returns whether the current instruction is a store instruction or not.
+ * @param ctx MAMBO context.
+ * @return Whether the current instruction is a store instruction or not.
+ */
 bool mambo_is_store(mambo_context *ctx);
+
+/**
+ * Returns whether the current instruction is a load or store instruction or none of both.
+ * @param ctx MAMBO context.
+ * @return Whether the current instruction is a load or store instruction or none of both.
+ */
 bool mambo_is_load_or_store(mambo_context *ctx);
+
+/**
+ * Calculate read or write address of load or store instruction and save it into a
+ * scratch register. (RISC-V only)
+ * @param ctx MAMBO context.
+ * @param reg Scratch register.
+ * @return 0 if successfully calculated, else non-zero (e.g. not a load/store 
+ *  instruction).
+ */
+int mambo_calc_ld_st_addr(mambo_context *ctx, enum reg reg);
+
+/**
+ * Get load or store data size.
+ * @param ctx MAMBO context.
+ * @return Load or store data size. Returns `-1` if no size exists (e.g. not a 
+ *  load/store instruction)
+ */
 int mambo_get_ld_st_size(mambo_context *ctx);
 int mambo_add_identity_mapping(mambo_context *ctx);
 char *mambo_get_cb_function_name(mambo_context *ctx);
