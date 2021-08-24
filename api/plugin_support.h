@@ -239,6 +239,12 @@ char *mambo_get_cb_function_name(mambo_context *ctx);
 int mambo_stop_scan(mambo_context *ctx);
 int mambo_reserve_cc_space(mambo_context *ctx, size_t size);
 
+/**
+ * Get branch type of current instruction.
+ * @param ctx MAMBO context.
+ * @return Branch type bits.
+ * @see mambo_branch_type
+ */
 mambo_branch_type mambo_get_branch_type(mambo_context *ctx);
 
 /* Symbol-related functions */
