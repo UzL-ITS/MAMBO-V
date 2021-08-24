@@ -30,6 +30,10 @@
   #include "api/emit_a64.h"
   #include "pie/pie-a64-field-decoder.h"
   #include "pie/pie-a64-decoder.h"
+#elif DBM_ARCH_RISCV64
+  #include "api/emit_riscv.h"
+  #include "pie/pie-riscv-field-decoder.h"
+  #include "pie/pie-riscv-decoder.h"
 #endif
 #include "api/helpers.h"
 #include "scanner_common.h"
