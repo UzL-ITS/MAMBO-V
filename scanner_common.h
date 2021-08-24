@@ -128,7 +128,9 @@ void riscv_cc_branch(dbm_thread *thread_data, uint16_t *write_p, uint64_t target
  * Write code to conditionally branch to a target.
  * @param write_p Pointer to the writing location.
  * @param target Target address.
- * @param cond Condition struct.
+ * @param cond Condition struct. If condition is AL a immediate jump is inserted and
+ *  the `r1` field of `cond` decides whether the branch should be linked (`r1 != 0`)
+ *  or not (`r1 == 0`)
  * @see mambo_cond
  * @return 0 if executed successfully, else non-zero.
  */

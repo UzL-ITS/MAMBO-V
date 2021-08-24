@@ -484,7 +484,7 @@ void test_riscv_copy_to_reg_64bits()
 
 void test_riscv_b_cond_helper()
 {
-	uint16_t w[31] = {0};
+	uint16_t w[33] = {0};
 	uint16_t *write_p = w;
 
 	mambo_cond cond = {x8, x0, EQ};
@@ -543,7 +543,10 @@ void test_riscv_b_cond_helper()
 	TEST_ASSERT_NOT_EQUAL(0, ret);
 
 	cond.cond = AL;
+	cond.r1 = 0;
 	ret = riscv_b_cond_helper(&write_p, (uint64_t)write_p + 4098, &cond);
+	cond.r1 = 1;
+	ret = riscv_b_cond_helper(&write_p, (uint64_t)write_p + 4094, &cond);
 
 	TEST_ASSERT_EQUAL_HEX32(0xEE040FE3, *(uint32_t*)&w[0]); // BEQ x8, x0, -258
 	TEST_ASSERT_EQUAL_HEX16(0xD001, w[2]); // C.BEQZ x8, -256
@@ -564,15 +567,16 @@ void test_riscv_b_cond_helper()
 	TEST_ASSERT_EQUAL_HEX32(0x7E20FFE3, *(uint32_t*)&w[24]); // BGEU x1, x2, 4094
 	TEST_ASSERT_EQUAL_HEX32(0x8020F063, *(uint32_t*)&w[26]); // BGEU x1, x2, -4096
 	
-	uint16_t w_exp[2] = {0};
+	uint16_t w_exp[4] = {0};
 	uint16_t *write_p_exp = w_exp;
 	riscv_branch_imm_helper(&write_p_exp, (uint64_t)w_exp + 4098, false);
-	TEST_ASSERT_EQUAL_HEX16_ARRAY(w_exp, &w[28], 2);
+	riscv_branch_imm_helper(&write_p_exp, (uint64_t)w_exp + 4098, true);
+	TEST_ASSERT_EQUAL_HEX16_ARRAY(w_exp, &w[28], 4);
 	
-	TEST_ASSERT_EQUAL(0, w[30]);
+	TEST_ASSERT_EQUAL(0, w[32]);
 
 	// Check pointer
-	TEST_ASSERT_EQUAL_PTR(&w[30], write_p);
+	TEST_ASSERT_EQUAL_PTR(&w[32], write_p);
 }
 
 void test_riscv_save_regs()
