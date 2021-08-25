@@ -158,7 +158,7 @@ int riscv_b_cond_helper(uint16_t **write_p, uint64_t target, mambo_cond *cond)
 
 	// Handle pseudo condition "always" (aka no condition)
 	if (cond->cond == AL) {
-		return riscv_branch_imm_helper(write_p, target, false);
+		return riscv_branch_imm_helper(write_p, target, cond->r1);
 	}
 
 	// Write compressed instruction if possible

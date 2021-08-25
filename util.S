@@ -488,6 +488,67 @@ abort:
 #endif
 .endfunc
 
+#ifdef DBM_ARCH_RISCV64
+push_all_but_params:
+  /*
+   * Push all registers but the function argument registers and sp (x1, x3-x9, x18-x31).
+   */
+  # Move sp first, so that compressed instructions can be used
+  # (SD replaced with C.SDSP by assembler)
+  ADDI    sp, sp, -176
+  SD      x1, 0(sp)
+  SD      x3, 8(sp)
+  SD      x4, 16(sp)
+  SD      x5, 24(sp)
+  SD      x6, 32(sp)
+  SD      x7, 40(sp)
+  SD      x8, 48(sp)
+  SD      x9, 56(sp)
+  SD      x18, 64(sp)
+  SD      x19, 72(sp)
+  SD      x20, 80(sp)
+  SD      x21, 88(sp)
+  SD      x22, 96(sp)
+  SD      x23, 104(sp)
+  SD      x24, 112(sp)
+  SD      x25, 120(sp)
+  SD      x26, 128(sp)
+  SD      x27, 136(sp)
+  SD      x28, 144(sp)
+  SD      x29, 152(sp)
+  SD      x30, 160(sp)
+  SD      x31, 168(sp)
+  RET
+
+pop_all_but_params:
+  /*
+   * Pop all registers but the function argument registers and sp (x1, x3-x9, x18-x31).
+   */
+  LD      x1, 0(sp)
+  LD      x3, 8(sp)
+  LD      x4, 16(sp)
+  LD      x5, 24(sp)
+  LD      x6, 32(sp)
+  LD      x7, 40(sp)
+  LD      x8, 48(sp)
+  LD      x9, 56(sp)
+  LD      x18, 64(sp)
+  LD      x19, 72(sp)
+  LD      x20, 80(sp)
+  LD      x21, 88(sp)
+  LD      x22, 96(sp)
+  LD      x23, 104(sp)
+  LD      x24, 112(sp)
+  LD      x25, 120(sp)
+  LD      x26, 128(sp)
+  LD      x27, 136(sp)
+  LD      x28, 144(sp)
+  LD      x29, 152(sp)
+  LD      x30, 160(sp)
+  LD      x31, 168(sp)
+  ADDI    sp, sp, 176
+  RET
+#endif
 
 .global safe_fcall_trampoline
 .func safe_fcall_trampoline
@@ -553,9 +614,9 @@ safe_fcall_trampoline:
   RET
 
 #elif DBM_ARCH_RISCV64
-  JAL push_x1_x31
+  JAL push_all_but_params
   JALR x18          # function pointer
-  JAL pop_x1_x31
+  JAL pop_all_but_params
   RET
 #endif
 
