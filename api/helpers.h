@@ -239,7 +239,7 @@ static inline int emit_a64_add_sub(mambo_context *ctx, int rd, int rn, int rm);
 int emit_a64_add_sub_ext(mambo_context *ctx, int rd, int rn, int rm, int ext_option, int shift);
 #endif
 
-#ifdef DMB_ARCH_RISCV64
+#ifdef DBM_ARCH_RISCV64
 /**
  * Write RISC-V code to push registers.
  * @param ctx MAMBO context.
