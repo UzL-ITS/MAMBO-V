@@ -211,7 +211,7 @@ syscall_wrapper:
         # Balance the stack on rt_sigreturn, which doesn't return here
         LI      x28, 139
         BNE     x17, x28, svc
-        ADDI    sp, sp, (8 + 248)       # Additional 8 because scanner pushed x8
+        ADDI    sp, sp, (16 + 248)      # Additional 16 because scanner pushed x1 and x8
 
 svc:
         # Syscall
