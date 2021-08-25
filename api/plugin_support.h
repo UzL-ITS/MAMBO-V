@@ -101,8 +101,8 @@ typedef enum {
   BRANCH_INDIRECT = (1 << 2),
   BRANCH_RETURN = (1 << 3),
   BRANCH_COND = (1 << 4),
-  BRANCH_COND_PSR = (1 << 5),
-  BRANCH_COND_CBZ = (1 << 6),
+  BRANCH_COND_PSR = (1 << 5), // ARM-only
+  BRANCH_COND_CBZ = (1 << 6), // ARM-only
   BRANCH_COND_TBZ = (1 << 7), // A64-only
   BRANCH_COND_IT = (1 << 8),  // T32-only
   BRANCH_CALL = (1 << 9),
@@ -195,15 +195,56 @@ bool mambo_is_cond(mambo_context *ctx);
 mambo_cond mambo_get_cond(mambo_context *ctx);
 mambo_cond mambo_get_inverted_cond(mambo_context *ctx, mambo_cond cond);
 void mambo_replace_inst(mambo_context *ctx);
+
+/**
+ * Returns whether the current instruction is a load instruction or not.
+ * @param ctx MAMBO context.
+ * @return Whether the current instruction is a load instruction or not.
+ */
 bool mambo_is_load(mambo_context *ctx);
+
+/**
+ * Returns whether the current instruction is a store instruction or not.
+ * @param ctx MAMBO context.
+ * @return Whether the current instruction is a store instruction or not.
+ */
 bool mambo_is_store(mambo_context *ctx);
+
+/**
+ * Returns whether the current instruction is a load or store instruction or none of both.
+ * @param ctx MAMBO context.
+ * @return Whether the current instruction is a load or store instruction or none of both.
+ */
 bool mambo_is_load_or_store(mambo_context *ctx);
+
+/**
+ * Calculate read or write address of load or store instruction and save it into a
+ * scratch register. (RISC-V only)
+ * @param ctx MAMBO context.
+ * @param reg Scratch register.
+ * @return 0 if successfully calculated, else non-zero (e.g. not a load/store 
+ *  instruction).
+ */
+int mambo_calc_ld_st_addr(mambo_context *ctx, enum reg reg);
+
+/**
+ * Get load or store data size.
+ * @param ctx MAMBO context.
+ * @return Load or store data size. Returns `-1` if no size exists (e.g. not a 
+ *  load/store instruction)
+ */
 int mambo_get_ld_st_size(mambo_context *ctx);
 int mambo_add_identity_mapping(mambo_context *ctx);
 char *mambo_get_cb_function_name(mambo_context *ctx);
 int mambo_stop_scan(mambo_context *ctx);
 int mambo_reserve_cc_space(mambo_context *ctx, size_t size);
 
+/**
+ * Get branch type of current instruction.
+ * @param ctx MAMBO context.
+ * @return Branch type bits.
+ * @see mambo_branch_type
+ */
 mambo_branch_type mambo_get_branch_type(mambo_context *ctx);
 
 /* Symbol-related functions */

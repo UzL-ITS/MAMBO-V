@@ -117,7 +117,7 @@ int mambo_register_function_cb(mambo_context *ctx, char *fn_name,
                                mambo_callback cb_pre, mambo_callback cb_post, int max_args) {
 #ifdef __arm__
   #define ARG_LIMIT 4
-#elif __aarch64__
+#elif defined(__aarch64__) || defined(DBM_ARCH_RISCV64)
   #define ARG_LIMIT 8
 #endif
   if (cb_pre == NULL && cb_post == NULL) return -1;
@@ -205,6 +205,8 @@ int mambo_get_inst_len(mambo_context *ctx) {
   }
 #elif __aarch64__
   return 4;
+#elif DBM_ARCH_RISCV64
+  return (inst <= 39) ? 2 : 4;
 #endif
 }
 
@@ -230,11 +232,21 @@ mambo_cond mambo_get_cond(mambo_context *ctx) {
 }
 
 bool mambo_is_cond(mambo_context *ctx) {
+#ifdef DBM_ARCH_RISCV64
+  return ctx->code.cond.cond != AL;
+#else
   return ctx->code.cond != AL;
+#endif
 }
 
 mambo_cond mambo_get_inverted_cond(mambo_context *ctx, mambo_cond cond) {
+#ifdef DBM_ARCH_RISCV64
+  mambo_cond inv_cond = cond;
+  inv_cond.cond = invert_cond(cond.cond & 0xF);
+  return inv_cond;
+#else
   return invert_cond(cond & 0xF);
+#endif
 }
 
 void mambo_replace_inst(mambo_context *ctx) {
@@ -483,9 +495,13 @@ int mambo_reserve_cc_space(mambo_context *ctx, size_t size) {
     arm_check_free_space(ctx->thread_data, (uint32_t **)&ctx->code.write_p, (uint32_t **)&ctx->code.data_p,
                          size, mambo_get_fragment_id(ctx));
   }
-#elif __aarch64__
+#elif __aarch64__2
   a64_check_free_space(ctx->thread_data, (uint32_t **)&ctx->code.write_p, (uint32_t **)&ctx->code.data_p,
                        size, mambo_get_fragment_id(ctx));
+#elif DBM_ARCH_RISCV64
+  #include "scanner_common.h"
+  riscv_check_free_space(ctx->thread_data, (uint16_t **)&ctx->code.write_p, 
+    (uint16_t **)&ctx->code.data_p, size, mambo_get_fragment_id(ctx));
 #endif
   return 0;
 }

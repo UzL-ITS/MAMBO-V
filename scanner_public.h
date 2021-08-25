@@ -387,6 +387,8 @@ enum reg_alt {
 #define m_tp    (1 << tp)
 #define m_fp    (1 << fp)
 
+#define invert_cond(cond) cond ^ 1
+
 /**
  * Write code to copy an immediate value up to 32 bits to a register.
  * @param write_p Pointer to the writing location.

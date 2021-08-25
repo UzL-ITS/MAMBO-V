@@ -105,10 +105,15 @@ void _function_callback_wrapper(mambo_context *ctx, watched_func_t *func) {
   ctx->code.func_name = func->name;
 
   if (func->post_callback != NULL) {
+#ifdef DBM_ARCH_RISCV64
+    emit_push(ctx, (1 << x8) | (1 << ra));
+#else
     emit_push(ctx, (1 << es) | (1 << lr));
+#endif
   }
   if (func->pre_callback != NULL) {
     ctx->event_type = PRE_FN_C;
+    // Call pre-callback
     func->pre_callback(ctx);
   }
   if (func->post_callback != NULL) {
@@ -125,14 +130,23 @@ void _function_callback_wrapper(mambo_context *ctx, watched_func_t *func) {
     emit_pop(ctx, (1 << x0) | (1 << x1));
 #elif __arm__
     emit_pop(ctx, (1 << r5) | (1 << r6));
+#elif DBM_ARCH_RISCV64
+    emit_pop(ctx, (1 << x10) | (1 << x11));
 #endif
 
     ctx->event_type = POST_FN_C;
+    // Call post-callback
     func->post_callback(ctx);
 
+#ifdef DBM_ARCH_RISCV64
+    emit_pop(ctx, (1 << x8) | (1 << ra));
+    // IHL(LR) - emulated return to the caller of malloc()
+    emit_indirect_branch_by_spc(ctx, ra);
+#else
     emit_pop(ctx, (1 << es) | (1 << lr));
     // IHL(LR) - emulated return to the caller of malloc()
     emit_indirect_branch_by_spc(ctx, lr);
+#endif
     emit_local_fcall(ctx, &fcall);
   }
 #endif

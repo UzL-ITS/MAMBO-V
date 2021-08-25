@@ -34,6 +34,10 @@
   #include "../pie/pie-a64-decoder.h"
   #include "../pie/pie-a64-field-decoder.h"
 #endif
+#ifdef DBM_ARCH_RISCV64
+  #include "../pie/pie-riscv-decoder.h"
+  #include "../pie/pie-riscv-field-decoder.h"
+#endif
 
 #ifdef PLUGINS_NEW
 
@@ -255,6 +259,38 @@ mambo_branch_type mambo_get_branch_type(mambo_context *ctx) {
     }
   }
 #endif // __aarch64__
+#ifdef DBM_ARCH_RISCV64
+  switch (ctx->code.inst) {
+    case RISCV_JAL:
+    case RISCV_C_JAL:
+      type = BRANCH_DIRECT | BRANCH_CALL;
+      break;
+    case RISCV_JALR:
+    case RISCV_C_JALR:
+      type = BRANCH_INDIRECT | BRANCH_RETURN;
+      break;
+    case RISCV_C_J:
+      type = BRANCH_DIRECT;
+      break;
+    case RISCV_C_JR:
+      type = BRANCH_INDIRECT;
+      break;
+    case RISCV_BEQ:
+    case RISCV_BNE:
+    case RISCV_BLT:
+    case RISCV_BLTU:
+    case RISCV_BGE:
+    case RISCV_BGEU:
+    case RISCV_C_BEQZ:
+    case RISCV_C_BNEZ:
+      type = BRANCH_DIRECT | BRANCH_COND;
+      break;
+    
+    default:
+      type = BRANCH_NONE;
+      break;
+  }
+#endif
 
   return type;
 }

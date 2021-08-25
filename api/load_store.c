@@ -30,6 +30,9 @@
 #elif __aarch64__
   #include "../pie/pie-a64-field-decoder.h"
   #include "../pie/pie-a64-decoder.h"
+#elif DBM_ARCH_RISCV64
+  #include "../pie/pie-riscv-decoder.h"
+  #include "../pie/pie-riscv-field-decoder.h"
 #endif
 
 #ifdef __arm__
@@ -182,6 +185,23 @@ bool mambo_is_load(mambo_context *ctx) {
   bool is_load, is_store;
   _a64_is_load_or_store(ctx, &is_load, &is_store);
   return is_load;
+#elif DBM_ARCH_RISCV64
+  switch (ctx->code.inst) {
+  case RISCV_LB:
+  case RISCV_LBU:
+  case RISCV_LH:
+  case RISCV_LHU:
+  case RISCV_LW:
+  case RISCV_LWU:
+  case RISCV_LD:
+  case RISCV_C_LW:
+  case RISCV_C_LWSP:
+  case RISCV_C_LD:
+  case RISCV_C_LDSP:
+  case RISCV_LR_W:
+  case RISCV_LR_D:
+    return true;
+  }
 #endif
   return false;
 }
@@ -260,12 +280,26 @@ bool mambo_is_store(mambo_context *ctx) {
   bool is_load, is_store;
   _a64_is_load_or_store(ctx, &is_load, &is_store);
   return is_store;
+#elif DBM_ARCH_RISCV64
+  switch (ctx->code.inst) {
+  case RISCV_SB:
+  case RISCV_SH:
+  case RISCV_SW:
+  case RISCV_SD:
+  case RISCV_C_SW:
+  case RISCV_C_SWSP:
+  case RISCV_C_SD:
+  case RISCV_C_SDSP:
+  case RISCV_SC_W:
+  case RISCV_SC_D:
+    return true;
+  }
 #endif
   return false;
 }
 
 bool mambo_is_load_or_store(mambo_context *ctx) {
-#ifdef __arm__
+#if __arm__ || DBM_ARCH_RISCV64
   return mambo_is_load(ctx) || mambo_is_store(ctx);
 #elif __aarch64__
   bool is_load, is_store;
@@ -274,6 +308,27 @@ bool mambo_is_load_or_store(mambo_context *ctx) {
 #endif
 }
 
+#if DBM_ARCH_RISCV64
+/**
+ * Save load or store address to scratch register.
+ * @param ctx MAMBO context.
+ * @param reg Sratch register to save the address to.
+ * @param rs1 Base offset register.
+ * @param offset Immediate offset.
+ */
+void _generate_addr(mambo_context *ctx, int reg, int rs1, int offset)
+{
+  int stack_offset = 0;
+  if (rs1 == sp) {
+    // Add pushed register offset on stack pointer
+    stack_offset = ctx->code.plugin_pushed_reg_count;
+    stack_offset *= sizeof(uintptr_t);
+  }
+
+  offset += stack_offset;
+  emit_add_sub_i(ctx, reg, rs1, offset);
+}
+#else
 void _generate_addr(mambo_context *ctx, int reg, int rn, int rm, int offset) {
 #ifdef __arm__
   enum reg rtmp = reg_invalid;
@@ -284,6 +339,7 @@ void _generate_addr(mambo_context *ctx, int reg, int rn, int rm, int offset) {
 #endif
   int apply_offset = 0;
   if (rn == sp) {
+    // Add pushed register offset on stack pointer
     apply_offset = ctx->code.plugin_pushed_reg_count;
     apply_offset *= sizeof(uintptr_t);
   }
@@ -327,6 +383,7 @@ void _generate_addr(mambo_context *ctx, int reg, int rn, int rm, int offset) {
   }
 #endif
 }
+#endif // DBM_ARCH_RISCV64
 
 #ifdef __arm__
 int _thumb_calc_ld_st_addr(mambo_context *ctx, enum reg reg) {
@@ -785,6 +842,97 @@ int _a64_calc_ld_st_addr(mambo_context *ctx, enum reg reg) {
 }
 #endif
 
+#ifdef DBM_ARCH_RISCV64
+/**
+ * Calculate read or write address of load or store instruction and save it into a
+ * scratch register. (RISC-V only)
+ * @param ctx MAMBO context.
+ * @param reg Scratch register.
+ * @return 0 if successfully calculated, else non-zero (e.g. not a load/store 
+ *  instruction).
+ */
+int _riscv_calc_ld_st_addr(mambo_context *ctx, enum reg reg)
+{
+  switch (ctx->code.inst) {
+  case RISCV_LB:
+  case RISCV_LBU:
+  case RISCV_LH:
+  case RISCV_LHU:
+  case RISCV_LW:
+  case RISCV_LWU:
+  case RISCV_LD: {
+    int rd, rs1, imm;
+    riscv_ld_decode_fields(ctx->code.read_address, &rd, &rs1, &imm);
+    _generate_addr(ctx, reg, rs1, imm);
+    return 0;
+  }
+  case RISCV_C_LW:
+  case RISCV_C_SW: {
+    int rd, rs1, imm3_5, imm2_6, offset;
+    riscv_c_lw_decode_fields(ctx->code.read_address, &rd, &rs1, &imm3_5, &imm2_6);
+    offset = (imm3_5 << 3) | ((imm2_6 & 1) << 6) | ((imm2_6 & 2) << 1);
+    _generate_addr(ctx, reg, rs1 + 8, offset);
+    return 0;
+  }
+  case RISCV_C_LD:
+  case RISCV_C_SD: {
+    int rd, rs1, imm3_5, imm6_7, offset;
+    riscv_c_ld_decode_fields(ctx->code.read_address, &rd, &rs1, &imm3_5, &imm6_7);
+    offset = (imm3_5 << 3) | (imm6_7 << 6);
+    _generate_addr(ctx, reg, rs1 + 8, offset);
+    return 0;
+  }
+  case RISCV_C_LWSP: {
+    int rd, imm5, imm2_4_6_7, offset;
+    riscv_c_lwsp_decode_fields(ctx->code.read_address, &rd, &imm5, &imm2_4_6_7);
+    offset = (imm5 << 5) | (imm2_4_6_7 & 0x1C) | ((imm2_4_6_7 & 3) << 6);
+    _generate_addr(ctx, reg, sp, offset);
+    return 0;
+  }
+  case RISCV_C_LDSP: {
+    int rd, imm5, imm3_4_6_8, offset;
+    riscv_c_ldsp_decode_fields(ctx->code.read_address, &rd, &imm5, &imm3_4_6_8);
+    offset = (imm5 << 5) | (imm3_4_6_8 & 0x18) | ((imm3_4_6_8 & 7) << 6);
+    _generate_addr(ctx, reg, sp, offset);
+    return 0;
+  }
+  case RISCV_C_SWSP: {
+    int rs2, imm2_5_6_7, offset;
+    riscv_c_swsp_decode_fields(ctx->code.read_address, &rs2, &imm2_5_6_7);
+    offset = (imm2_5_6_7 & 0x3C) | ((imm2_5_6_7 & 3) << 6);
+    _generate_addr(ctx, reg, sp, offset);
+    return 0;
+  }
+  case RISCV_C_SDSP: {
+    int rs2, imm3_5_6_8, offset;
+    riscv_c_swsp_decode_fields(ctx->code.read_address, &rs2, &imm2_5_6_7);
+    offset = (imm3_5_6_8 & 0x38) | ((imm3_5_6_8 & 7) << 6);
+    _generate_addr(ctx, reg, sp, offset);
+    return 0;
+  }
+  case RISCV_SB:
+  case RISCV_SH:
+  case RISCV_SW:
+  case RISCV_SD: {
+    int rs1, rs2, imm0_4, imm5_11, offset;
+    riscv_c_sd_decode_fields(ctx->code.read_address, &rs2, &rs1, imm5_11, imm0_4);
+    offset = (imm5_11 << 5) | imm0_4;
+    _generate_addr(ctx, reg, rs1, offset);
+    return 0;
+  }
+  case RISCV_LR_W:
+  case RISCV_LR_D:
+  case RISCV_SC_W:
+  case RISCV_SC_D: { 
+    int aq, rl, rd, rs1;
+    riscv_lr_d_decode_fields(ctx->code.read_address, &aq, &rl, &rd, &rs1);
+    _generate_addr(ctx, reg, rs1, 0);
+    return 0;
+  }
+  }
+  return -1;
+}
+#endif
 
 int mambo_calc_ld_st_addr(mambo_context *ctx, enum reg reg) {
 #ifdef __arm__
@@ -796,6 +944,8 @@ int mambo_calc_ld_st_addr(mambo_context *ctx, enum reg reg) {
   return -1;
 #elif __aarch64__
   return _a64_calc_ld_st_addr(ctx, reg);
+#elif DBM_ARCH_RISCV64
+  return _riscv_calc_ld_st_addr(ctx, reg);
 #endif
 }
 
@@ -1189,6 +1339,54 @@ int _arm_get_ld_st_size(mambo_context *ctx) {
 }
 #endif
 
+#ifdef DBM_ARCH_RISCV64
+/**
+ * Get load or store data size. (RISC-V only)
+ * @param ctx MAMBO context.
+ * @return Load or store data size. Returns `-1` if no size exists (e.g. not a 
+ *  load/store instruction)
+ */
+int _riscv_get_ld_st_size(mambo_context *ctx)
+{
+  int size = -1;
+
+  switch (ctx->code.inst) {
+  case RISCV_LB:
+  case RISCV_LBU:
+  case RISCV_SB:
+    size = 1;
+    break;
+  case RISCV_LH:
+  case RISCV_LHU:
+  case RISCV_SH:
+    size = 2;
+    break;
+  case RISCV_LW:
+  case RISCV_LWU:
+  case RISCV_SW:
+  case RISCV_C_LW:
+  case RISCV_C_SW:
+  case RISCV_C_LWSP:
+  case RISCV_C_SWSP:
+  case RISCV_LR_W:
+  case RISCV_SC_W:
+    size = 4;
+    break;
+  case RISCV_LD:
+  case RISCV_SD:
+  case RISCV_C_LD:
+  case RISCV_C_SD:
+  case RISCV_C_LDSP:
+  case RISCV_C_SDSP:
+  case RISCV_LR_D:
+  case RISCV_SC_D:
+    size = 8;
+    break;
+  }
+  return size;
+}
+#endif
+
 int mambo_get_ld_st_size(mambo_context *ctx) {
 #ifdef __arm__
   if (ctx->code.inst_type == THUMB_INST) {
@@ -1198,6 +1396,8 @@ int mambo_get_ld_st_size(mambo_context *ctx) {
   }
 #elif __aarch64__
   return _a64_get_ld_st_size(ctx);
+#elif DBM_ARCH_RISCV64
+  return _riscv_get_ld_st_size(ctx);
 #endif
   return -1;
 }
