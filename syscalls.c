@@ -100,7 +100,7 @@ void *dbm_start_thread_pth(void *ptr, void *mambo_sp) {
   // Full system memory barrier
 #if defined(__arm__) || defined(__aarch64__)
   asm volatile("DMB SY" ::: "memory");
-#elif
+#else
   asm volatile("FENCE" ::: "memory");
 #endif
   *(thread_data->set_tid) = tid;
@@ -245,7 +245,7 @@ int syscall_handler_pre(uintptr_t syscall_no, uintptr_t *args, uint16_t *next_in
         while(child_tid == 0);
 #if defined(__arm__) || defined(__aarch64__)
         asm volatile("DMB SY" ::: "memory");
-#elif
+#else
         asm volatile("FENCE" ::: "memory");
 #endif
         args[0] = child_tid;
