@@ -881,7 +881,7 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 		thread_data->code_cache_meta[basic_block].exit_branch_type = uncond_imm_riscv;
 		thread_data->code_cache_meta[basic_block].exit_branch_addr = write_p;
 		thread_data->code_cache_meta[basic_block].branch_taken_addr = target;
-		*write_p = NOP_INSTRUCTION; // Reserves space for linking branch.
+		*(uint32_t *)write_p = NOP_INSTRUCTION; // Reserves space for linking branch.
 		write_p += 2;
 #endif
 			riscv_save_regs(&write_p, (m_x10 | m_x11));
