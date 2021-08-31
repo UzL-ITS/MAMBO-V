@@ -127,6 +127,7 @@ dbm_client_entry:
 #endif
 
 #ifdef DBM_ARCH_RISCV64
+dbm_client_entry:
   MV sp, a1
   ADDI sp, sp, -16      # The scanner inserted code to pop a0 and a1, so push zeros before
   SD zero, 0(sp)

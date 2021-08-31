@@ -758,6 +758,7 @@ uintptr_t signal_dispatcher(int i, siginfo_t *info, void *context) {
 #elif __aarch64__
         a64_HVC_decode_fields((uint32_t *)pc, &imm);
 #elif DBM_ARCH_RISCV64
+        debug("Signal trap at %p: 0x%x\n", (uint32_t *)pc, *(uint32_t *)pc);
         if (*(uint32_t *)pc == RISCV_SRET_CODE)
           imm = SIGNAL_TRAP_IB;
         else if (*(uint32_t *)pc == RISCV_MRET_CODE)

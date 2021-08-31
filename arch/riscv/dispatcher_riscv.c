@@ -6,8 +6,6 @@
 
 #include "../../pie/pie-riscv-encoder.h"
 
-// DEBUG: Turn off debug
-#define DEBUG
 #ifdef DEBUG
 	#define debug(...) fprintf(stderr, __VA_ARGS__)
 #else

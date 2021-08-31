@@ -23,8 +23,6 @@
 	#define allocate_bb(...) 0
 #endif
 
-// DEBUG: Turn off debug
-#define DEBUG
 #ifdef DEBUG
 	#define debug(...) fprintf(stderr, __VA_ARGS__)
 #else
@@ -311,7 +309,7 @@ void riscv_copy_to_reg_64bits(uint16_t **write_p, enum reg reg, uint64_t value)
 	 * 					+-------------------------------+
 	 * 					|	C.J		.+10				|
 	 * 					|								|
-	 * 					|	.qword value				|
+	 * 					|	.dword value				|
 	 * 					|								|
 	 * 					|	AUIPC	reg, 0				|
 	 * 					|	LD		reg, -8(reg)		|
@@ -321,7 +319,7 @@ void riscv_copy_to_reg_64bits(uint16_t **write_p, enum reg reg, uint64_t value)
 	riscv_c_j(write_p, 10);
 	(*write_p)++;
 	
-	// .qword value
+	// .dword value
 	riscv_copy64(write_p, &value);
 
 	riscv_auipc(write_p, reg, 0);
@@ -441,8 +439,7 @@ void pass1_riscv(uint16_t *read_address, branch_type *bb_type)
 	while (*bb_type == unknown) {
 		riscv_instruction inst = riscv_decode(read_address);
 
-		switch (inst)
-		{
+		switch (inst) {
 		case RISCV_JAL:
 			*bb_type = uncond_imm_riscv;
 			break;
@@ -471,7 +468,8 @@ void pass1_riscv(uint16_t *read_address, branch_type *bb_type)
 		case RISCV_BGEU:
 			*bb_type = cond_imm_riscv;
 			break;
-		default:
+		case RISCV_INVALID:
+		case RISCV_C_ILLEGAL:
 			return;
 		}
 		read_address += riscv_get_inst_length(inst);
@@ -838,7 +836,10 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 		debug("RV64 scan read_address: %p, w: : %p, bb: %d\n", read_address, write_p, basic_block);
 		riscv_instruction inst = riscv_decode(read_address);
 		debug("  instruction enum: %d\n", (inst == RISCV_INVALID) ? -1 : inst);
-		debug("  instruction word: 0x%x\n", *read_address);
+		if (inst >= 40)
+			debug("  instruction word: 0x%x\n", *(uint32_t *)read_address);
+		else 
+			debug("  instruction word: 0x%x\n", *read_address);
 
 #ifdef PLUGINS_NEW
 		bool skip_inst = riscv_scanner_deliver_callbacks(thread_data, PRE_INST_C, 
@@ -876,13 +877,14 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 			}
 
 			branch_offset = sign_extend64(20, branch_offset);
+			debug("  Branch offset = 0x%x\n", branch_offset);
 			target = (uint64_t)read_address + branch_offset;
 #ifdef DBM_LINK_UNCOND_IMM
-		thread_data->code_cache_meta[basic_block].exit_branch_type = uncond_imm_riscv;
-		thread_data->code_cache_meta[basic_block].exit_branch_addr = write_p;
-		thread_data->code_cache_meta[basic_block].branch_taken_addr = target;
-		*(uint32_t *)write_p = NOP_INSTRUCTION; // Reserves space for linking branch.
-		write_p += 2;
+			thread_data->code_cache_meta[basic_block].exit_branch_type = uncond_imm_riscv;
+			thread_data->code_cache_meta[basic_block].exit_branch_addr = write_p;
+			thread_data->code_cache_meta[basic_block].branch_taken_addr = target;
+			*(uint32_t *)write_p = NOP_INSTRUCTION; // Reserves space for linking branch.
+			write_p += 2;
 #endif
 			riscv_save_regs(&write_p, (m_x10 | m_x11));
 			riscv_branch_jump(thread_data, &write_p, basic_block, target, 
@@ -934,6 +936,8 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 			riscv_calc_b_imm(immhi, immlo, &branch_offset);
 			if (inst != RISCV_BLTU && inst != RISCV_BGEU)
 				branch_offset = sign_extend64(12, branch_offset);
+
+			debug("  Branch offset = 0x%x\n", branch_offset);
 			target = (uint64_t)read_address + branch_offset;
 
 #ifdef DBM_LINK_COND_IMM
@@ -975,6 +979,7 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 
 			riscv_calc_cb_imm(immhi, immlo, &branch_offset);
 			branch_offset = sign_extend64(8, branch_offset);
+			debug("  Branch offset = 0x%x\n", branch_offset);
 			target = (uint64_t)read_address + branch_offset;
 
 #ifdef DBM_LINK_COND_IMM
@@ -1087,6 +1092,7 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 
 		case RISCV_ECALL:
 			// Instrument system calls
+			debug("Syscall detected\n");
 			riscv_save_regs(&write_p, (m_x1 | m_x8)); // Restored by syscall_wrapper
 			riscv_copy_to_reg_64bits(&write_p, x8, (uint64_t)read_address + 4);
 			riscv_branch_imm_helper(&write_p, thread_data->syscall_wrapper_addr, true);
@@ -1249,7 +1255,9 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 		case RISCV_FCVT_D_L:
 		case RISCV_FCVT_D_LU:
 		case RISCV_FMV_D_X:
+			debug("Instruction copied.\n");
 			riscv_copy32(&write_p, read_address);
+			break;
 
 		case RISCV_C_ADDI4SPN:
 		case RISCV_C_FLD:
@@ -1284,7 +1292,9 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 		case RISCV_C_FSDSP:
 		case RISCV_C_SWSP:
 		case RISCV_C_SDSP:
+			debug("Instruction copied.\n");
 			riscv_copy16(&write_p, read_address);
+			break;
 
 		case RISCV_INVALID:
 		case RISCV_C_ILLEGAL:
@@ -1312,6 +1322,7 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 					riscv_copy16(&write_p, read_address);
 				}
 			}
+			break;
 		
 		default:
 			// Panic

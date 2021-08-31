@@ -457,7 +457,7 @@ void init_thread(dbm_thread *thread_data) {
 
   thread_data->status = THREAD_RUNNING;
                         
-  debug("Syscall wrapper addr: 0x%x\n", thread_data->syscall_wrapper_addr);
+  debug("Syscall wrapper addr: %p\n", thread_data->syscall_wrapper_addr);
 }
 
 void free_all_other_threads(dbm_thread *thread_data) {
@@ -653,7 +653,7 @@ void main(int argc, char **argv, char **envp) {
   struct elf_loader_auxv auxv;
   uintptr_t entry_address;
   load_elf(argv[1], &elf, &auxv, &entry_address, false);
-  debug("entry address: 0x%x\n", entry_address);
+  debug("entry address: %p\n", entry_address);
 
   // Set up brk emulation
   ret = pthread_mutex_init(&global_data.brk_mutex, NULL);

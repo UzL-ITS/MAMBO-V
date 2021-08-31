@@ -43,8 +43,6 @@
   #define dbm_client_entry(...) debug("dbm_client_entry() replaced\n")
 #endif
 
-#define DEBUG 1
-#undef DEBUG
 #ifdef DEBUG
   #define debug(...) fprintf(stderr, __VA_ARGS__)
 #else
@@ -449,6 +447,7 @@ void elf_run(uintptr_t entry_address, char *filename, int argc, char **argv, cha
   */
   assert((char *)&stack[stack_i] <= stack_strings);
 
+  debug("Run: entry_address %p\n", entry_address);
   dbm_client_entry(entry_address, &stack[0]);
   
   // If we return here, something is horribly wrong
