@@ -12,8 +12,8 @@
 
 #include "../../api/helpers.h"
 
-#define C_NOP_INSTRUCTION 0x0001	// C.NOP
-#define NOP_INSTRUCTION 0x00010001	// 2x C.NOP; 32 bit NOP causes illegal instruction
+#define NOP_INSTRUCTION 0x13000000		// ADDI x0, x0, 0
+#define C_NOP_INSTRUCTION 0x0001		// C.NOP
 
 #define MIN_FSPACE 60 //TODO: Validate value
 
