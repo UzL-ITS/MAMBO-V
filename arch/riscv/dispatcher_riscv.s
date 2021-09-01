@@ -168,7 +168,8 @@ dispatcher_trampoline:
         ADDI    x12, sp, 224            # param2: *next_addr (TCP)
         LD      x13, disp_thread_data   # param3: dbm_thread *thread_data
 
-        CALL    dispatcher_addr         # Call far-away function
+        LD      x18, dispatcher_addr    # Call very far-away function
+        JALR    ra, 0(x18)
 
         JAL     pop_x1_x31
         LD      x10, 0(sp)              # param0: TCP (next_addr)
@@ -177,7 +178,7 @@ dispatcher_trampoline:
         
         J       checked_cc_return
 
-dispatcher_addr: .quad dispatcher
+dispatcher_addr: .dword dispatcher
 
 .global disp_thread_data
 disp_thread_data: .dword 0
@@ -193,7 +194,8 @@ syscall_wrapper:
         MV      x12, x8	                # param2: *next_inst (x8 set by scanner)
         LD      x13, disp_thread_data   # param3: dbm_thread *thread_data
         
-        CALL    syscall_handler_pre_addr
+        LD      x18, syscall_handler_pre_addr   # Call very far-away function
+        JALR    ra, 0(x18)
 
         BEQZ    x10, s_w_r
 
@@ -223,7 +225,8 @@ syscall_wrapper_svc:
         MV      x12, x8	                # param2: *next_inst (x8 set by scanner)
         LD      x13, disp_thread_data   # param3: dbm_thread *thread_data
 
-        CALL    syscall_handler_post_addr
+        LD      x18, syscall_handler_post_addr  # Call very far-away function
+        JALR    ra, 0(x18)
 
 s_w_r:
         JAL     pop_x1_x31_full
@@ -236,8 +239,8 @@ s_w_r:
 
         J       checked_cc_return
 
-syscall_handler_pre_addr: .quad syscall_handler_pre
-syscall_handler_post_addr: .quad syscall_handler_post
+syscall_handler_pre_addr: .dword syscall_handler_pre
+syscall_handler_post_addr: .dword syscall_handler_post
 
 .global checked_cc_return
 checked_cc_return:
@@ -259,7 +262,8 @@ deliver_signals_trampoline:
         LI      x12, 0xd6db             # param2: sigmask TODO: Why should SCP be 0xd6db?
         BEQ     x10, x12, .             # loop if SPC (target) == 0xd6db
 
-        CALL    deliver_signals
+        LD      x18, deliver_signals_addr       # Call very far-away function
+        JALR    ra, 0(x18)
 
         JAL     pop_x1_x31
 
@@ -315,6 +319,8 @@ abort_self_signal:
         LD      x10, 0(sp)
         C.ADDI  sp, 24
         JR      x10
+
+deliver_signals_addr: .dword deliver_signals
 
 .global th_is_pending_ptr
 th_is_pending_ptr: .word 0              # uint32
