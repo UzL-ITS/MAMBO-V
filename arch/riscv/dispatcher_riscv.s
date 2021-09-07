@@ -5,12 +5,12 @@ start_of_dispatcher_s:
 push_x1_x31:
         /*
          * Push general purpose registers 
-         * x1 to x31 exept for x2 (sp), x10 and x11
+         * x1 to x31 exept for x2 (sp), x1 (ra), x10 and x11
+         * NOTE: You may want to also push ra before the subroutine.
          */
         # Move sp first, so that compressed instructions can be used
         # (SD replaced with C.SDSP by assembler)
-        ADDI    sp, sp, -224
-        SD      x1, 216(sp)
+        ADDI    sp, sp, -216
         SD      x3, 208(sp)
         SD      x4, 200(sp)
         SD      x5, 192(sp)
@@ -44,9 +44,9 @@ push_x1_x31:
 pop_x1_x31:
         /*
          * Pop general purpose registers 
-         * x1 to x31 exept for x2 (sp), x10 and x11
+         * x1 to x31 exept for x2 (sp), x1 (ra), x10 and x11
+         * NOTE: You may want to also pop ra after the subroutine.
          */
-        LD      x1, 216(sp)
         LD      x3, 208(sp)
         LD      x4, 200(sp)
         LD      x5, 192(sp)
@@ -74,95 +74,96 @@ pop_x1_x31:
         LD      x29, 16(sp)
         LD      x30, 8(sp)
         LD      x31, 0(sp)
-        ADDI    sp, sp, 224
+        ADDI    sp, sp, 216
         RET
 
 push_x1_x31_full:
         /*
-         * Push general purpose registers. x1 to x31 saved apart from x2 (sp) in
-	 * ascending order.
-         * Warning: Must be paired with `pop_x1_x31_full` not `pop_x1_x31`!
+         * Push general purpose registers. x1 to x31 saved apart from x2 (sp) and 
+         * x1 (ra) in ascending order.
+         * WARNING: Must be paired with `pop_x1_x31_full` not `pop_x1_x31`!
+         * NOTE: You may want to also push ra before the subroutine.
          */
         # Move sp first, so that compressed instructions can be used
         # (SD replaced with C.SDSP by assembler)
-        ADDI    sp, sp, -240
-        SD      x1, 0(sp)
-        SD      x3, 8(sp)
-        SD      x4, 16(sp)
-        SD      x5, 24(sp)
-        SD      x6, 32(sp)
-        SD      x7, 40(sp)
-        SD      x8, 48(sp)
-        SD      x9, 56(sp)
-        SD      x10, 64(sp)
-        SD      x11, 72(sp)
-        SD      x12, 80(sp)
-        SD      x13, 88(sp)
-        SD      x14, 96(sp)
-        SD      x15, 104(sp)
-        SD      x16, 112(sp)
-        SD      x17, 120(sp)
-        SD      x18, 128(sp)
-        SD      x19, 136(sp)
-        SD      x20, 144(sp)
-        SD      x21, 152(sp)
-        SD      x22, 160(sp)
-        SD      x23, 168(sp)
-        SD      x24, 176(sp)
-        SD      x25, 184(sp)
-        SD      x26, 192(sp)
-        SD      x27, 200(sp)
-        SD      x28, 208(sp)
-        SD      x29, 216(sp)
-        SD      x30, 224(sp)
-        SD      x31, 232(sp)
+        ADDI    sp, sp, -232
+        SD      x3, 0(sp)
+        SD      x4, 8(sp)
+        SD      x5, 16(sp)
+        SD      x6, 24(sp)
+        SD      x7, 32(sp)
+        SD      x8, 40(sp)
+        SD      x9, 48(sp)
+        SD      x10, 56(sp)
+        SD      x11, 64(sp)
+        SD      x12, 72(sp)
+        SD      x13, 80(sp)
+        SD      x14, 88(sp)
+        SD      x15, 96(sp)
+        SD      x16, 104(sp)
+        SD      x17, 112(sp)
+        SD      x18, 120(sp)
+        SD      x19, 128(sp)
+        SD      x20, 136(sp)
+        SD      x21, 144(sp)
+        SD      x22, 152(sp)
+        SD      x23, 160(sp)
+        SD      x24, 168(sp)
+        SD      x25, 176(sp)
+        SD      x26, 184(sp)
+        SD      x27, 192(sp)
+        SD      x28, 200(sp)
+        SD      x29, 208(sp)
+        SD      x30, 216(sp)
+        SD      x31, 224(sp)
         RET
 
 pop_x1_x31_full:
         /*
-         * Pop general purpose registers. x1 to x31 restored apart from x2 (sp) in 
-	 * ascending order.
-         * Warning: Must be paired with `push_x1_x31_full` not `push_x1_x31`!
+         * Pop general purpose registers. x1 to x31 restored apart from x2 (sp) and 
+         * x1 (ra) in ascending order.
+         * WARNING: Must be paired with `push_x1_x31_full` not `push_x1_x31`!
+         * NOTE: You may want to also pop ra after the subroutine.
          */
-        LD      x1, 0(sp)
-        LD      x3, 8(sp)
-        LD      x4, 16(sp)
-        LD      x5, 24(sp)
-        LD      x6, 32(sp)
-        LD      x7, 40(sp)
-        LD      x8, 48(sp)
-        LD      x9, 56(sp)
-        LD      x10, 64(sp)
-        LD      x11, 72(sp)
-        LD      x12, 80(sp)
-        LD      x13, 88(sp)
-        LD      x14, 96(sp)
-        LD      x15, 104(sp)
-        LD      x16, 112(sp)
-        LD      x17, 120(sp)
-        LD      x18, 128(sp)
-        LD      x19, 136(sp)
-        LD      x20, 144(sp)
-        LD      x21, 152(sp)
-        LD      x22, 160(sp)
-        LD      x23, 168(sp)
-        LD      x24, 176(sp)
-        LD      x25, 184(sp)
-        LD      x26, 192(sp)
-        LD      x27, 200(sp)
-        LD      x28, 208(sp)
-        LD      x29, 216(sp)
-        LD      x30, 224(sp)
-        LD      x31, 232(sp)
-        ADDI    sp, sp, 240
+        LD      x3, 0(sp)
+        LD      x4, 8(sp)
+        LD      x5, 16(sp)
+        LD      x6, 24(sp)
+        LD      x7, 32(sp)
+        LD      x8, 40(sp)
+        LD      x9, 48(sp)
+        LD      x10, 56(sp)
+        LD      x11, 64(sp)
+        LD      x12, 72(sp)
+        LD      x13, 80(sp)
+        LD      x14, 88(sp)
+        LD      x15, 96(sp)
+        LD      x16, 104(sp)
+        LD      x17, 112(sp)
+        LD      x18, 120(sp)
+        LD      x19, 128(sp)
+        LD      x20, 136(sp)
+        LD      x21, 144(sp)
+        LD      x22, 152(sp)
+        LD      x23, 160(sp)
+        LD      x24, 168(sp)
+        LD      x25, 176(sp)
+        LD      x26, 184(sp)
+        LD      x27, 192(sp)
+        LD      x28, 200(sp)
+        LD      x29, 208(sp)
+        LD      x30, 216(sp)
+        LD      x31, 224(sp)
+        ADDI    sp, sp, 232
         RET
 
 .global dispatcher_trampoline
 dispatcher_trampoline:
         # PUSH all general purpose registers but x10, x11
         # x10 and x11 are pushed by the exit stub
-        C.ADDI  sp, -16
-        SD      x10, 8(sp)
+        C.ADDI  sp, -24
+        SD      ra, 0(sp)
+        SD      x10, 16(sp)
         JAL     push_x1_x31
 
         ADDI    x12, sp, 224            # param2: *next_addr (TCP)
@@ -172,9 +173,10 @@ dispatcher_trampoline:
         JALR    ra, 0(x18)
 
         JAL     pop_x1_x31
-        LD      x10, 0(sp)              # param0: TCP (next_addr)
-        LD      x11, 8(sp)              # param1: SPC (target)
-        C.ADDI  sp, 16
+        LD      ra, 0(sp)
+        LD      x10, 8(sp)              # param0: TCP (next_addr)
+        LD      x11, 16(sp)             # param1: SPC (target)
+        C.ADDI  sp, 24
         
         J       checked_cc_return
 
@@ -190,7 +192,7 @@ syscall_wrapper:
 
         # Call pre syscall handler
         MV      x10, x17                # param0: syscall_no
-        ADDI    x11, sp, 64             # param1: *args
+        ADDI    x11, sp, 56             # param1: *args
         MV      x12, x8	                # param2: *next_inst (x8 set by scanner)
         LD      x13, disp_thread_data   # param3: dbm_thread *thread_data
         
@@ -200,18 +202,18 @@ syscall_wrapper:
         BEQZ    x10, s_w_r
 
         # Load syscall parameter registers
-        LD      x10, 64(sp)
-        LD      x11, 72(sp)
-        LD      x12, 80(sp)
-        LD      x13, 88(sp)
-        LD      x14, 96(sp)
-        LD      x15, 104(sp)
-        LD      x16, 112(sp)
+        LD      x10, 56(sp)
+        LD      x11, 64(sp)
+        LD      x12, 72(sp)
+        LD      x13, 80(sp)
+        LD      x14, 88(sp)
+        LD      x15, 96(sp)
+        LD      x16, 104(sp)
 
-        # Balance the stack on rt_sigreturn, which doesn't return here
+        # Balance the stack on rt_sigreturn, which doesn't return here anymore
         LI      x28, 139
         BNE     x17, x28, svc
-        ADDI    sp, sp, (16 + 248)      # Additional 16 because scanner pushed x1 and x8
+        ADDI    sp, sp, (16 + 232)      # Additional 16 because scanner pushed x1 and x8
 
 svc:
         # Syscall
@@ -219,7 +221,7 @@ svc:
 
 syscall_wrapper_svc:
         # Call post syscall handler
-        ADDI    x11, sp, 64             # param1: *args
+        ADDI    x11, sp, 56             # param1: *args
         SD      x10, 0(x11)
         MV      x10, x17                # param0: syscall_no
         MV      x12, x8	                # param2: *next_inst (x8 set by scanner)
@@ -234,7 +236,7 @@ s_w_r:
         LD      x1, 8(sp)               # Restore x1 pushed by scanner
         SD      x10, 8(sp)
         SD      x11, 0(sp)
-        LD      x10, -240(sp)           # param0: TCP (x1 set by scanner)
+        LD      x10, -232(sp)           # param0: TCP (x1 set by scanner)
         LD      x11, -192(sp)           # param1: SPC (x8 set by scanner)
 
         J       checked_cc_return
@@ -252,11 +254,13 @@ checked_cc_return:
         C.ADDI  sp, 8
         JR      x10
 deliver_signals_trampoline:
-        ADDI    sp, sp, -40
-        SD      x10, 24(sp)
-        SD      x11, 32(sp)
+        ADDI    sp, sp, -48
+        SD      ra, 0(sp)
+        SD      x10, 32(sp)
+        SD      x11, 40(sp)
         MV      x10, x11                # param0: SPC (target)
         MV      x11, sp	                # param1: self_signal *
+        C.ADDI  x11, 8                  # 0(sp) is saved ra, self_signal starts at 8(sp)
         JAL     push_x1_x31
 
         LI      x12, 0xd6db             # param2: sigmask TODO: Why should SCP be 0xd6db?
@@ -266,6 +270,8 @@ deliver_signals_trampoline:
         JALR    ra, 0(x18)
 
         JAL     pop_x1_x31
+        LD      ra, 0(sp)
+        C.ADDI  sp, 8
 
         /*
          * Stack peek:

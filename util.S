@@ -29,12 +29,12 @@
 push_gen_regs:
   /*
    * Push general purpose registers 
-   * x1 to x31 exept for sp (x2), x10 and x11
+   * x1 to x31 exept for x2 (sp), x1 (ra), x10 and x11
+   * NOTE: You may want to also push ra before the subroutine.
    */
   # Move sp first, so that compressed instructions can be used
   # (SD replaced with C.SDSP by assembler)
-  ADDI sp, sp, -224
-  SD x1, 216(sp)
+  ADDI sp, sp, -216
   SD x3, 208(sp)
   SD x4, 200(sp)
   SD x5, 192(sp)
@@ -68,9 +68,9 @@ push_gen_regs:
 pop_gen_regs:
   /*
    * Pop general purpose registers 
-   * x1 to x31 exept for sp (x2), x10 and x11
+   * x1 to x31 exept for x2 (sp), x1 (ra), x10 and x11
+   * NOTE: You may want to also pop ra after the subroutine.
    */
-  LD x1, 216(sp)
   LD x3, 208(sp)
   LD x4, 200(sp)
   LD x5, 192(sp)
@@ -98,7 +98,7 @@ pop_gen_regs:
   LD x29, 16(sp)
   LD x30, 8(sp)
   LD x31, 0(sp)
-  ADDI sp, sp, 224
+  ADDI sp, sp, 216
   RET
 #endif
 
@@ -354,12 +354,15 @@ sigret:
   SVC 0
 #endif
 #ifdef DBM_ARCH_RISCV64
-  C.ADDI sp, -16
-  SD a0, 0(sp)
-  SD a1, 8(sp)
+  C.ADDI sp, -24
+  SD ra, 0(sp)
+  SD a0, 8(sp)
+  SD a1, 16(sp)
   JAL push_gen_regs
   JAL signal_dispatcher
   JAL pop_gen_regs
+  LD ra, 0(sp)
+  C.ADDI sp, 8
 
   BEQZ a0, sigret
 
@@ -492,62 +495,60 @@ abort:
 #ifdef DBM_ARCH_RISCV64
 push_all_but_params:
   /*
-   * Push all registers but the function argument registers and sp (x1, x3-x9, x18-x31).
+   * Push all registers but the function argument registers and sp and ra (x3-x9, x18-x31).
    */
   # Move sp first, so that compressed instructions can be used
   # (SD replaced with C.SDSP by assembler)
-  ADDI    sp, sp, -176
-  SD      x1, 0(sp)
-  SD      x3, 8(sp)
-  SD      x4, 16(sp)
-  SD      x5, 24(sp)
-  SD      x6, 32(sp)
-  SD      x7, 40(sp)
-  SD      x8, 48(sp)
-  SD      x9, 56(sp)
-  SD      x18, 64(sp)
-  SD      x19, 72(sp)
-  SD      x20, 80(sp)
-  SD      x21, 88(sp)
-  SD      x22, 96(sp)
-  SD      x23, 104(sp)
-  SD      x24, 112(sp)
-  SD      x25, 120(sp)
-  SD      x26, 128(sp)
-  SD      x27, 136(sp)
-  SD      x28, 144(sp)
-  SD      x29, 152(sp)
-  SD      x30, 160(sp)
-  SD      x31, 168(sp)
+  ADDI    sp, sp, -168
+  SD      x3, 0(sp)
+  SD      x4, 8(sp)
+  SD      x5, 16(sp)
+  SD      x6, 24(sp)
+  SD      x7, 32(sp)
+  SD      x8, 40(sp)
+  SD      x9, 48(sp)
+  SD      x18, 56(sp)
+  SD      x19, 64(sp)
+  SD      x20, 72(sp)
+  SD      x21, 80(sp)
+  SD      x22, 88(sp)
+  SD      x23, 96(sp)
+  SD      x24, 104(sp)
+  SD      x25, 112(sp)
+  SD      x26, 120(sp)
+  SD      x27, 128(sp)
+  SD      x28, 136(sp)
+  SD      x29, 144(sp)
+  SD      x30, 152(sp)
+  SD      x31, 160(sp)
   RET
 
 pop_all_but_params:
   /*
-   * Pop all registers but the function argument registers and sp (x1, x3-x9, x18-x31).
+   * Pop all registers but the function argument registers and sp and ra (x3-x9, x18-x31).
    */
-  LD      x1, 0(sp)
-  LD      x3, 8(sp)
-  LD      x4, 16(sp)
-  LD      x5, 24(sp)
-  LD      x6, 32(sp)
-  LD      x7, 40(sp)
-  LD      x8, 48(sp)
-  LD      x9, 56(sp)
-  LD      x18, 64(sp)
-  LD      x19, 72(sp)
-  LD      x20, 80(sp)
-  LD      x21, 88(sp)
-  LD      x22, 96(sp)
-  LD      x23, 104(sp)
-  LD      x24, 112(sp)
-  LD      x25, 120(sp)
-  LD      x26, 128(sp)
-  LD      x27, 136(sp)
-  LD      x28, 144(sp)
-  LD      x29, 152(sp)
-  LD      x30, 160(sp)
-  LD      x31, 168(sp)
-  ADDI    sp, sp, 176
+  LD      x3, 0(sp)
+  LD      x4, 8(sp)
+  LD      x5, 16(sp)
+  LD      x6, 24(sp)
+  LD      x7, 32(sp)
+  LD      x8, 40(sp)
+  LD      x9, 48(sp)
+  LD      x18, 56(sp)
+  LD      x19, 64(sp)
+  LD      x20, 72(sp)
+  LD      x21, 80(sp)
+  LD      x22, 88(sp)
+  LD      x23, 96(sp)
+  LD      x24, 104(sp)
+  LD      x25, 112(sp)
+  LD      x26, 120(sp)
+  LD      x27, 128(sp)
+  LD      x28, 136(sp)
+  LD      x29, 144(sp)
+  LD      x30, 152(sp)
+  LD      x31, 160(sp)
+  ADDI    sp, sp, 168
   RET
 #endif
 
@@ -615,9 +616,13 @@ safe_fcall_trampoline:
   RET
 
 #elif DBM_ARCH_RISCV64
+  C.ADDI sp, -8
+  SD ra, 0(sp)
   JAL push_all_but_params
   JALR x18          # function pointer
   JAL pop_all_but_params
+  LD ra, 0(sp)
+  C.ADDI sp, 8
   RET
 #endif
 
