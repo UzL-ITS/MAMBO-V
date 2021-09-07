@@ -22,22 +22,22 @@ void insert_cond_exit_branch(dbm_code_cache_meta *bb_meta, uint16_t **write_p,
 	case cond_imm_riscv:
 		/*
 		 * Overwrite code written by riscv_branch_jump_cond
-	 	 * 				+-------------------------------+
-	 	 * 	 	NEW	 |- |	B(cond)	rs1, rs2, .+8		|	previously NOP
-	 	 * 			 |	|	NOP							|	(everything else unchanged)
-	 	 * 			 |	|								|
-	 	 * 			 -> |	PUSH	x10, x11			|
-	 	 * 				|	LI		x11, basic_block 	|
-	 	 * 				|								|
-	 	 * 				|	B(cond)	branch_target:		|
-	 	 * 				|								|
-	 	 * 				|	LI		x10, read_address+len
-	 	 * 				|	JAL		DISPATCHER			|
-	 	 * 				|								|
-	 	 * 				| branch_target:				|
-	 	 * 				|	LI		x10, target			|
-	 	 * 				|	JAL		DISPATCHER			|
-	 	 * 				+-------------------------------+
+	 	 *              +-------------------------------+
+	 	 *      NEW  |- |   B(cond) rs1, rs2, .+8       |   previously NOP
+	 	 *           |  |   NOP                         |   (everything else unchanged)
+	 	 *           |  |                               |
+	 	 *           -> |   PUSH    x10, x11            |
+	 	 *              |   LI      x11, basic_block    |
+	 	 *              |                               |
+	 	 *              |   B(cond)	branch_target:      |
+	 	 *              |                               |
+	 	 *              |   LI      x10, read_address+len
+	 	 *              |   JAL     DISPATCHER          |
+	 	 *              |                               |
+	 	 *              | branch_target:                |
+	 	 *              |   LI      x10, target         |
+	 	 *              |   JAL     DISPATCHER          |
+	 	 *              +-------------------------------+
 	 	 */
 		riscv_b_cond_helper(write_p, (uint64_t)*write_p + 8, cond);
 		break;
@@ -65,22 +65,22 @@ void dispatcher_riscv(dbm_thread *thread_data, uint32_t source_index,
 		/*
 		 * Overwrite code written by riscv_branch_jump_cond to jump directly to the
 		 * target block.
-	 	 * 				+-------------------------------+
-	 	 * 	 	NEW		|	JAL		x0, block_address+16|	previously NOP
-	 	 * 			##	|	NOP							|	(everything else unchanged)
-	 	 * 			##	|								|
-	 	 * 			##	|	PUSH	x10, x11			|
-	 	 * 			##	|	LI		x11, basic_block 	|
-	 	 * 			##	|								|
-	 	 * 			##	|	B(cond)	branch_target:		|
-	 	 * 			##	|								|
-	 	 * 			##	|	LI		x10, read_address+len
-	 	 * 			##	|	JAL		DISPATCHER			|
-	 	 * 			##	|								|
-	 	 * 			##	| branch_target:				|
-	 	 * 			##	|	LI		x10, target			|
-	 	 * 			##	|	JAL		DISPATCHER			|
-	 	 * 				+-------------------------------+
+	 	 *              +-------------------------------+
+	 	 *      NEW     |   JAL     x0, block_address+16|   previously NOP
+	 	 *          ##  |   NOP                         |   (everything else unchanged)
+	 	 *          ##  |                               |
+	 	 *          ##  |   PUSH    x10, x11            |
+	 	 *          ##  |   LI      x11, basic_block    |
+	 	 *          ##  |                               |
+	 	 *          ##  |   B(cond) branch_target:      |
+	 	 *          ##  |                               |
+	 	 *          ##  |   LI      x10, read_address+len
+	 	 *          ##  |   JAL     DISPATCHER          |
+	 	 *          ##  |                               |
+	 	 *          ##  | branch_target:                |
+	 	 *          ##  |   LI      x10, target         |
+	 	 *          ##  |   JAL     DISPATCHER          |
+	 	 *              +-------------------------------+
 		 * 
 		 * ## dead code
 	 	 */
@@ -125,22 +125,22 @@ void dispatcher_riscv(dbm_thread *thread_data, uint32_t source_index,
 
 		/*
 		 * Overwrite secound NOP from riscv_branch_jump_cond with branch to block address
-	 	 * 				+-------------------------------+
-	 	 * 		**	 |- |	B(cond)	rs1, rs2, .+8		|
-	 	 * 		NEW	 |	|	JAL		block_address+16	|	previously NOP
-	 	 * 			 |	|								|
-	 	 * 			 -> |	PUSH	x10, x11			|	(everything else unchanged)
-	 	 * 				|	LI		x11, basic_block 	|
-	 	 * 				|								|
-	 	 * 				|	B(cond)	branch_target:		|
-	 	 * 				|								|
-	 	 * 				|	LI		x10, read_address+len
-	 	 * 				|	JAL		DISPATCHER			|
-	 	 * 				|								|
-	 	 * 				| branch_target:				|
-	 	 * 				|	LI		x10, target			|
-	 	 * 				|	JAL		DISPATCHER			|
-	 	 * 				+-------------------------------+
+	 	 *              +-------------------------------+
+	 	 *      **   |- |   B(cond) rs1, rs2, .+8       |
+	 	 *      NEW  |  |   JAL     block_address+16    |   previously NOP
+	 	 *           |  |                               |
+	 	 *           -> |   PUSH    x10, x11            |   (everything else unchanged)
+	 	 *              |   LI      x11, basic_block    |
+	 	 *              |                               |
+	 	 *              |   B(cond) branch_target:      |
+	 	 *              |                               |
+	 	 *              |   LI      x10, read_address+len
+	 	 *              |   JAL     DISPATCHER          |
+	 	 *              |                               |
+	 	 *              | branch_target:                |
+	 	 *              |   LI      x10, target         |
+	 	 *              |   JAL     DISPATCHER          |
+	 	 *              +-------------------------------+
 		 * 
 		 * ** if conditional exit
 	 	 */
@@ -154,22 +154,22 @@ void dispatcher_riscv(dbm_thread *thread_data, uint32_t source_index,
 			 * Overwrite code written by riscv_branch_jump_cond to jump to the other 
 			 * target. Both targets are linked now, so the remaining code (jumping to
 			 * the dispatcher) becomes obsolete.
-			 * 			+-------------------------------+
-			 * 	**	 |- |	B(cond)	rs1, rs2, .+8		|
-			 * 		 |	|	JAL		block_address+16	|
-			 * 		 |	|								|
-			 * 	NEW	 -> |	JAL		other_target+4		|	previously PUSH	x10, x11
-			 * 		##	|	LI		x11, basic_block 	|	(everything else unchanged)
-			 * 		##	|								|
-			 * 		##	|	B(cond)	branch_target:		|
-			 * 		##	|								|
-			 * 		##	|	LI		x10, read_address+len
-			 * 		##	|	JAL		DISPATCHER			|
-			 * 		##	|								|
-			 * 		##	| branch_target:				|
-			 * 		##	|	LI		x10, target			|
-			 * 		##	|	JAL		DISPATCHER			|
-			 * 			+-------------------------------+
+			 *          +-------------------------------+
+			 *  **   |- |   B(cond) rs1, rs2, .+8       |
+			 *       |  |   JAL     block_address+16    |
+			 *       |  |                               |
+			 *  NEW  -> |   JAL     other_target+4      |   previously PUSH x10, x11
+			 *      ##  |   LI      x11, basic_block    |   (everything else unchanged)
+			 *      ##  |                               |
+			 *      ##  |   B(cond) branch_target:      |
+			 *      ##  |                               |
+			 *      ##  |   LI      x10, read_address+len
+			 *      ##  |   JAL     DISPATCHER          |
+			 *      ##  |                               |
+			 *      ##  | branch_target:                |
+			 *      ##  |   LI      x10, target         |
+			 *      ##  |   JAL     DISPATCHER          |
+			 *          +-------------------------------+
 			 *
 			 * ** if conditional exit
 			 * ## dead code
