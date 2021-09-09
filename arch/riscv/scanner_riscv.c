@@ -379,23 +379,25 @@ void riscv_branch_jump_cond(dbm_thread *thread_data, uint16_t **write_p,
 	int len)
 {
 	/*
+	 * //! Dont change any registers before the conditional branch!
 	 * 					+-------------------------------+
 	 * 					|	NOP							|	Space for lookup jump
 	 * 					|	NOP							|		inserted by dispatcher
 	 * 					|								|		(see dispatcher_riscv.c)
 	 * 					|	PUSH	x10, x11			|	(Pseudo instruction)
-	 * 					|	LI		x11, basic_block 	|	dispatcher: source_index
 	 * 					|								|
 	 * 					|	B(cond)	branch_target:		|
 	 * 					|								|
+	 * 					|	LI		x11, basic_block 	|	dispatcher: source_index
 	 * 					|	LI		x10, read_address+len	dispatcher: target
 	 * 					|	JAL		DISPATCHER			|
 	 * 					|								|
 	 * 					| branch_target:				|
+	 * 					|	LI		x11, basic_block 	|	dispatcher: source_index
 	 * 					|	LI		x10, target			|	dispatcher: target
 	 * 					|	JAL		DISPATCHER			|
 	 * 					+-------------------------------+
-	 * [Size: 70 B]
+	 * [Size: 76 B]
 	 */
 	uint16_t *cond_branch;
 
@@ -407,15 +409,19 @@ void riscv_branch_jump_cond(dbm_thread *thread_data, uint16_t **write_p,
 	*write_p += 2;
 
 	riscv_save_regs(write_p, (m_x10 | m_x11));
+
+	cond_branch = *write_p;
+	// Write NOPs in case of 16 bit instruction inserted
+	**(uint32_t **)write_p = NOP_INSTRUCTION;
+	*write_p += 2;
+
 	riscv_copy_to_reg_32bits(write_p, x11, basic_block);
-
-	cond_branch = (*write_p)++;
-
 	riscv_copy_to_reg_64bits(write_p, x10, (uint64_t)read_address + len);
 	riscv_branch_imm_helper(write_p, thread_data->dispatcher_addr, false);
 
 	riscv_b_cond_helper(&cond_branch, (uint64_t)*write_p, cond);
 
+	riscv_copy_to_reg_32bits(write_p, x11, basic_block);
 	riscv_copy_to_reg_64bits(write_p, x10, target);
 	riscv_branch_imm_helper(write_p, thread_data->dispatcher_addr, false);
 }
