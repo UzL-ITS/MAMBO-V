@@ -152,7 +152,7 @@ typedef struct {
 #ifdef DBM_TRACES
   uint8_t  traces[TRACE_CACHE_SIZE];
 #else
-  uint8_t *traces; // Array not used but the pointer which marks the end of `blocks`
+  uint8_t traces[1]; // Array not used but the pointer which marks the end of `blocks`
 #endif
 } dbm_code_cache;
 

@@ -711,6 +711,8 @@ uintptr_t signal_dispatcher(int i, siginfo_t *info, void *context) {
   uintptr_t cc_start = (uintptr_t)&current_thread->code_cache->blocks[trampolines_size_bbs];
   uintptr_t cc_end = cc_start + MAX_BRANCH_RANGE;
 
+  debug("Signal trap at %p: 0x%x\n", (uint32_t *)pc, *(uint32_t *)pc);
+
   if (global_data.exit_group > 0) {
     if (pc >= cc_start && pc < cc_end) {
       int fragment_id = addr_to_fragment_id(current_thread, (uintptr_t)pc);
@@ -758,7 +760,6 @@ uintptr_t signal_dispatcher(int i, siginfo_t *info, void *context) {
 #elif __aarch64__
         a64_HVC_decode_fields((uint32_t *)pc, &imm);
 #elif DBM_ARCH_RISCV64
-        debug("Signal trap at %p: 0x%x\n", (uint32_t *)pc, *(uint32_t *)pc);
         if (*(uint32_t *)pc == RISCV_SRET_CODE)
           imm = SIGNAL_TRAP_IB;
         else if (*(uint32_t *)pc == RISCV_MRET_CODE)

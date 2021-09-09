@@ -506,6 +506,7 @@ bool is_bb(dbm_thread *thread_data, uintptr_t addr) {
 int addr_to_bb_id(dbm_thread *thread_data, uintptr_t addr) {
   uintptr_t min = (uintptr_t)thread_data->code_cache->blocks;
   uintptr_t max = (uintptr_t)thread_data->code_cache->traces;
+  assert(min < max);
 
   if (addr < min || addr > max) {
     return -1;

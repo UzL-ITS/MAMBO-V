@@ -248,7 +248,8 @@ syscall_handler_post_addr: .dword syscall_handler_post
 checked_cc_return:
         C.ADDI  sp, -8
         SD      x12, 0(sp)
-        LWU     x12, th_is_pending_ptr
+        LD      x12, th_is_pending_ptr
+        LWU     x12, 0(x12)
         BNEZ    x12, deliver_signals_trampoline
         LD      x12, 0(sp)
         C.ADDI  sp, 8
@@ -329,7 +330,7 @@ abort_self_signal:
 deliver_signals_addr: .dword deliver_signals
 
 .global th_is_pending_ptr
-th_is_pending_ptr: .word 0              # uint32
+th_is_pending_ptr: .dword 0             # uint32 *
 
 .global end_of_dispatcher_s
 end_of_dispatcher_s:

@@ -12,7 +12,13 @@
 
 #include "../../api/helpers.h"
 
-#define NOP_INSTRUCTION 0x00000013		// ADDI x0, x0, 0 aka NOP
+/*
+ * Instead of the 32 NOP instruction, two C.NOP instructions are placed. If this double
+ * NOP replaced by an instruction it does not matter whether the replacment is a 32 bit
+ * 16 bit instruction. In case of a 16 bit instruction one C.NOP is left and the code
+ * stays functional.
+ */
+#define NOP_INSTRUCTION 0x00010001		// 2x C.NOP
 #define C_NOP_INSTRUCTION 0x0001		// C.NOP
 
 #define MIN_FSPACE 60 //TODO: Validate value
@@ -164,7 +170,7 @@ int riscv_b_cond_helper(uint16_t **write_p, uint64_t target, mambo_cond *cond)
 		unsigned int immlo = ((offset >> 5) & 1)
 						   | (offset & (3 << 1))
 						   | ((offset & (3 << 6)) >> 3);
-		unsigned int immhi = ((offset >> 4) & 3) | ((offset >> 6) & 4);
+		unsigned int immhi = ((offset >> 3) & 3) | ((offset >> 6) & 4);
 
 		switch (cond->cond) {
 		case EQ:
@@ -343,7 +349,7 @@ void riscv_branch_jump(dbm_thread *thread_data, uint16_t **write_p, int basic_bl
 	 * 
 	 * [Size: 4-12 B]
 	 */
-	debug("RISC-V branch target: 0x%lx\n", target);
+	debug("riscv_branch_jump: RISC-V branch target: 0x%lx\n", target);
 
 	if (flags & REPLACE_TARGET) {
 		riscv_copy_to_reg_64bits(write_p, x10, target);
@@ -393,7 +399,7 @@ void riscv_branch_jump_cond(dbm_thread *thread_data, uint16_t **write_p,
 	 */
 	uint16_t *cond_branch;
 
-	debug("RISC-V branch: read_addr: %p, target: 0x%lx\n", read_address, target);
+	debug("riscv_branch_jump_cond: RISC-V branch target: 0x%lx\n", target);
 
 	**(uint32_t **)write_p = NOP_INSTRUCTION;
 	*write_p += 2;
@@ -403,12 +409,12 @@ void riscv_branch_jump_cond(dbm_thread *thread_data, uint16_t **write_p,
 	riscv_save_regs(write_p, (m_x10 | m_x11));
 	riscv_copy_to_reg_32bits(write_p, x11, basic_block);
 
-	cond_branch = *(write_p)++;
+	cond_branch = (*write_p)++;
 
 	riscv_copy_to_reg_64bits(write_p, x10, (uint64_t)read_address + len);
 	riscv_branch_imm_helper(write_p, thread_data->dispatcher_addr, false);
 
-	riscv_b_cond_helper(&cond_branch, (uint64_t)write_p, cond);
+	riscv_b_cond_helper(&cond_branch, (uint64_t)*write_p, cond);
 
 	riscv_copy_to_reg_64bits(write_p, x10, target);
 	riscv_branch_imm_helper(write_p, thread_data->dispatcher_addr, false);
@@ -837,9 +843,9 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 		riscv_instruction inst = riscv_decode(read_address);
 		debug("  instruction enum: %d\n", (inst == RISCV_INVALID) ? -1 : inst);
 		if (inst >= 40)
-			debug("  instruction word: 0x%x\n", *(uint32_t *)read_address);
+			debug("  instruction word: 0x%08x\n", *(uint32_t *)read_address);
 		else 
-			debug("  instruction word: 0x%x\n", *read_address);
+			debug("  instruction word: 0x%04x\n", *read_address);
 
 #ifdef PLUGINS_NEW
 		bool skip_inst = riscv_scanner_deliver_callbacks(thread_data, PRE_INST_C, 
@@ -1004,18 +1010,22 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 			 * AUIPC is used to build pc-relative addresses. The 20 bit offset is
 			 * added to the address of the AUIPC instuction and written to a register.
 			 * 
-			 * AUIPC replaced by: riscv_copy_to_reg_64bits
+			 * AUIPC replaced by: `riscv_copy_to_reg_64bits`. The calculated absolute
+			 * address is calculated from the SPC.
 			 */
 			enum reg rd;
 			unsigned int imm;
 			uint64_t offset, pc_rel_addr;
 
 			riscv_auipc_decode_fields(read_address, &rd, &imm);
+			imm <<= 12;
 
 			offset = sign_extend64(20, imm);
 			pc_rel_addr = (uint64_t)read_address + offset;
 
 			riscv_copy_to_reg_64bits(&write_p, rd, pc_rel_addr);
+			debug("AUIPC instrumented, continue scan.\n");
+			break;
 		}
 
 		case RISCV_JALR: {
