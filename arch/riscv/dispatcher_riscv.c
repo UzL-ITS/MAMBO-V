@@ -27,14 +27,15 @@ void insert_cond_exit_branch(dbm_code_cache_meta *bb_meta, uint16_t **write_p,
 	 	 *           |  |   NOP                         |   (everything else unchanged)
 	 	 *           |  |                               |
 	 	 *           -> |   PUSH    x10, x11            |
-	 	 *              |   LI      x11, basic_block    |
 	 	 *              |                               |
 	 	 *              |   B(cond)	branch_target:      |
 	 	 *              |                               |
+		 *              |   LI      x11, basic_block    |
 	 	 *              |   LI      x10, read_address+len
 	 	 *              |   JAL     DISPATCHER          |
 	 	 *              |                               |
 	 	 *              | branch_target:                |
+		 *              |   LI      x11, basic_block    |
 	 	 *              |   LI      x10, target         |
 	 	 *              |   JAL     DISPATCHER          |
 	 	 *              +-------------------------------+
@@ -70,14 +71,15 @@ void dispatcher_riscv(dbm_thread *thread_data, uint32_t source_index,
 	 	 *          ##  |   NOP                         |   (everything else unchanged)
 	 	 *          ##  |                               |
 	 	 *          ##  |   PUSH    x10, x11            |
-	 	 *          ##  |   LI      x11, basic_block    |
 	 	 *          ##  |                               |
 	 	 *          ##  |   B(cond) branch_target:      |
 	 	 *          ##  |                               |
+		 *          ##  |   LI      x11, basic_block    |
 	 	 *          ##  |   LI      x10, read_address+len
 	 	 *          ##  |   JAL     DISPATCHER          |
 	 	 *          ##  |                               |
 	 	 *          ##  | branch_target:                |
+		 *          ##  |   LI      x11, basic_block    |
 	 	 *          ##  |   LI      x10, target         |
 	 	 *          ##  |   JAL     DISPATCHER          |
 	 	 *              +-------------------------------+
@@ -130,14 +132,15 @@ void dispatcher_riscv(dbm_thread *thread_data, uint32_t source_index,
 	 	 *      NEW  |  |   JAL     block_address+12    |   previously NOP
 	 	 *           |  |                               |
 	 	 *           -> |   PUSH    x10, x11            |   (everything else unchanged)
-	 	 *              |   LI      x11, basic_block    |
 	 	 *              |                               |
 	 	 *              |   B(cond) branch_target:      |
 	 	 *              |                               |
+		 *              |   LI      x11, basic_block    |
 	 	 *              |   LI      x10, read_address+len
 	 	 *              |   JAL     DISPATCHER          |
 	 	 *              |                               |
 	 	 *              | branch_target:                |
+		 *              |   LI      x11, basic_block    |
 	 	 *              |   LI      x10, target         |
 	 	 *              |   JAL     DISPATCHER          |
 	 	 *              +-------------------------------+
@@ -159,14 +162,15 @@ void dispatcher_riscv(dbm_thread *thread_data, uint32_t source_index,
 			 *       |  |   JAL     block_address+12    |
 			 *       |  |                               |
 			 *  NEW  -> |   JAL     other_target+12     |   previously PUSH x10, x11
-			 *      ##  |   LI      x11, basic_block    |   (everything else unchanged)
-			 *      ##  |                               |
+			 *      ##  |                               |	(everything else unchanged)
 			 *      ##  |   B(cond) branch_target:      |
 			 *      ##  |                               |
+			 *      ##  |   LI      x11, basic_block    |
 			 *      ##  |   LI      x10, read_address+len
 			 *      ##  |   JAL     DISPATCHER          |
 			 *      ##  |                               |
 			 *      ##  | branch_target:                |
+			 *      ##  |   LI      x11, basic_block    |
 			 *      ##  |   LI      x10, target         |
 			 *      ##  |   JAL     DISPATCHER          |
 			 *          +-------------------------------+
