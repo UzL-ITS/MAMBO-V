@@ -437,12 +437,24 @@ void init_plugin();
 
 void mambo_memcpy(void *dst, void *src, size_t l);
 
+/**
+ * Sign extend value to 64 bit integer.
+ * @param bits Size of value (index of sign bit + 1).
+ * @param value Value to sign extend.
+ * @return Sign extended 64 bit integer.
+ */
 static inline uint64_t sign_extend64(unsigned int bits, uint64_t value)
 {
     uint64_t C = (-1) << (bits - (uint64_t) 1);
     return (value + C) ^ C;
 }
 
+/**
+ * Sign extend value to 32 bit integer.
+ * @param bits Size of value (index of sign bit + 1).
+ * @param value Value to sign extend.
+ * @return Sign extended 32 bit integer.
+ */
 static inline int32_t sign_extend32(unsigned int bits, uint32_t value)
 {
   uint32_t C = (-1) << (bits - 1);

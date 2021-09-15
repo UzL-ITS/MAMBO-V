@@ -803,7 +803,7 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 	start_address = write_p;
 
 	if (type == mambo_bb) {
-		data_p = write_p + BASIC_BLOCK_SIZE; //TODO: Scale size
+		data_p = write_p + BASIC_BLOCK_SIZE;
 	} else { // mambo_trace, mambo_trace_entry
 		data_p = (uint16_t *)&thread_data->code_cache->traces + (TRACE_CACHE_SIZE / 4);
 		thread_data->code_cache_meta[basic_block].free_b = 0;
@@ -870,6 +870,7 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 			unsigned int rawimm;
 			uint64_t branch_offset;
 			uint64_t target;
+			int imm_size;
 
 			if (inst == RISCV_JAL) {
 				riscv_jal_decode_fields(read_address, &x, &rawimm);
@@ -878,17 +879,20 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 						(uint64_t)read_address + INST_32BIT);
 				}
 				riscv_calc_j_imm(rawimm, &branch_offset);
+				imm_size = 21;
 			} else if (inst == RISCV_C_JAL) {
 				riscv_c_jal_decode_fields(read_address, &rawimm);
 				riscv_copy_to_reg_64bits(&write_p, ra, 
 					(uint64_t)read_address + INST_16BIT);
 				riscv_calc_cj_imm(rawimm, &branch_offset);
+				imm_size = 12;
 			} else { // RISCV_C_J
 				riscv_c_j_decode_fields(read_address, &rawimm);
 				riscv_calc_cj_imm(rawimm, &branch_offset);
+				imm_size = 12;
 			}
 
-			branch_offset = sign_extend64(20, branch_offset);
+			branch_offset = sign_extend64(imm_size, branch_offset);
 			debug("  Branch offset = 0x%x\n", branch_offset);
 			target = (uint64_t)read_address + branch_offset;
 #ifdef DBM_LINK_UNCOND_IMM
@@ -946,8 +950,7 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 			}
 
 			riscv_calc_b_imm(immhi, immlo, &branch_offset);
-			if (inst != RISCV_BLTU && inst != RISCV_BGEU)
-				branch_offset = sign_extend64(12, branch_offset);
+			branch_offset = sign_extend64(13, branch_offset);
 
 			debug("  Branch offset = 0x%x\n", branch_offset);
 			target = (uint64_t)read_address + branch_offset;
@@ -963,6 +966,7 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 			thread_data->code_cache_meta[basic_block].branch_cache_status = 0;
 #endif
 
+			riscv_check_free_space(thread_data, &write_p, &data_p, 76, basic_block);
 			riscv_branch_jump_cond(thread_data, &write_p, basic_block, target, 
 				read_address, &cond, INST_32BIT);
 			stop = true;
@@ -981,7 +985,7 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 			branch_type type;
 
 			riscv_c_beqz_decode_fields(read_address, &rs1, &immhi, &immlo);
-			cond.r1 = rs1;
+			cond.r1 = rs1 + 8;
 			cond.r2 = x0;
 			if (inst == RISCV_C_BEQZ) {
 				cond.cond = EQ;
@@ -990,7 +994,7 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 			}
 
 			riscv_calc_cb_imm(immhi, immlo, &branch_offset);
-			branch_offset = sign_extend64(8, branch_offset);
+			branch_offset = sign_extend64(9, branch_offset);
 			debug("  Branch offset = 0x%x\n", branch_offset);
 			target = (uint64_t)read_address + branch_offset;
 
@@ -1005,6 +1009,7 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 			thread_data->code_cache_meta[basic_block].branch_cache_status = 0;
 #endif
 
+			riscv_check_free_space(thread_data, &write_p, &data_p, 76, basic_block);
 			riscv_branch_jump_cond(thread_data, &write_p, basic_block, target, 
 				read_address, &cond, INST_16BIT);
 			stop = true;
@@ -1026,7 +1031,7 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 			riscv_auipc_decode_fields(read_address, &rd, &imm);
 			imm <<= 12;
 
-			offset = sign_extend64(20, imm);
+			offset = sign_extend64(32, imm);
 			pc_rel_addr = (uint64_t)read_address + offset;
 
 			riscv_copy_to_reg_64bits(&write_p, rd, pc_rel_addr);
