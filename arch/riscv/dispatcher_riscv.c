@@ -151,6 +151,7 @@ void dispatcher_riscv(dbm_thread *thread_data, uint32_t source_index,
 		 * only pushed and needed to be popped if the dispatcher was invoked before.
 		 */
 		riscv_cc_branch(thread_data, branch_addr, block_address + 12);
+		branch_addr += 2;
 
 		if (other_target_in_cache) {
 			/*
