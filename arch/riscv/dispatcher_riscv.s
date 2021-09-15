@@ -188,6 +188,8 @@ disp_thread_data: .dword 0
 .global syscall_wrapper
 .global syscall_wrapper_svc
 syscall_wrapper:
+        C.ADDI  sp, -8
+        SD      ra, 0(sp)
         JAL     push_x1_x31_full
 
         # Call pre syscall handler
@@ -232,12 +234,13 @@ syscall_wrapper_svc:
 
 s_w_r:
         JAL     pop_x1_x31_full
-        LD      x8, 0(sp)               # Restore x8 pushed by scanner
-        LD      x1, 8(sp)               # Restore x1 pushed by scanner
-        SD      x10, 8(sp)
-        SD      x11, 0(sp)
-        LD      x10, -232(sp)           # param0: TCP (x1 set by scanner)
+        LD      x1, 16(sp)              # Restore x1 pushed by scanner
+        LD      x8, 8(sp)               # Restore x8 pushed by scanner
+        SD      x10, 16(sp)
+        SD      x11, 8(sp)
+        LD      x10, 0(sp)              # param0: TCP (x1 set by scanner)
         LD      x11, -192(sp)           # param1: SPC (x8 set by scanner)
+        C.ADDI  sp, 8
 
         J       checked_cc_return
 
