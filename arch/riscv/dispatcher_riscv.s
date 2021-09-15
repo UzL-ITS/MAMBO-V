@@ -211,6 +211,8 @@ syscall_wrapper:
         LD      x14, 88(sp)
         LD      x15, 96(sp)
         LD      x16, 104(sp)
+        # Also load syscall register because it may have changed (debug output)
+        LD      x17, 112(sp)
 
         # Balance the stack on rt_sigreturn, which doesn't return here anymore
         LI      x28, 139
