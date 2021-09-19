@@ -19,7 +19,8 @@ void insert_cond_exit_branch(dbm_code_cache_meta *bb_meta, uint16_t **write_p,
 	case uncond_imm_riscv:
 	case uncond_reg_riscv:
 		return;
-	case cond_imm_riscv:
+	case cond_imm_riscv: {
+		uint16_t *write_p_tmp = *write_p;
 		/*
 		 * Overwrite code written by riscv_branch_jump_cond
 	 	 *              +-------------------------------+
@@ -40,8 +41,10 @@ void insert_cond_exit_branch(dbm_code_cache_meta *bb_meta, uint16_t **write_p,
 	 	 *              |   JAL     DISPATCHER          |
 	 	 *              +-------------------------------+
 	 	 */
-		riscv_b_cond_helper(write_p, (uint64_t)*write_p + 8, cond);
+		riscv_b_cond_helper(&write_p_tmp, (uint64_t)*write_p + 8, cond);
+		*write_p += 2;
 		break;
+	}
 
 	default:
 		fprintf(stderr, "insert_cond_exit_branch(): unknown branch type\n");
