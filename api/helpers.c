@@ -800,7 +800,7 @@ int emit_indirect_branch_by_spc(mambo_context *ctx, enum reg reg) {
   a64_inline_hash_lookup(current_thread, 0, (uint32_t **)&ctx->code.write_p, ctx->code.read_address, reg, false, false);
 #elif DBM_ARCH_RISCV64
   // Uses fragment id 0 to prevent the dispatcher from attempting linking on an IHL miss
-  riscv_inline_hash_lookup(current_thread, 0, (uint32_t **)&ctx->code.write_p, ctx->code.read_address, reg, false, false);
+  riscv_inline_hash_lookup(current_thread, 0, (uint32_t **)&ctx->code.write_p, ctx->code.read_address, reg, 0, false);
 #elif __arm__
   switch(ctx->code.inst_type) {
     case ARM_INST:

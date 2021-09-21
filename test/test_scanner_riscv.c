@@ -901,7 +901,7 @@ void test_riscv_inline_hash_lookup()
 	dbm_thread *thread_data = malloc(sizeof(dbm_thread));
 	thread_data->dispatcher_addr = 0x6770;
 
-	riscv_inline_hash_lookup(thread_data, 17, &write_p, read_address, ra, 0, true, true,
+	riscv_inline_hash_lookup(thread_data, 17, &write_p, read_address, ra, 0, ra, true,
 		INST_16BIT);
 
 	TEST_ASSERT_EQUAL_HEX16(0, w[54]);

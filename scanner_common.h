@@ -231,13 +231,13 @@ void pass1_riscv(uint16_t *read_address, branch_type *bb_type);
  * @param read_address Pointer to the current reading location.
  * @param rn Jump target register.
  * @param offset Target register offset (added to register value).
- * @param link Save the address of the next instruction to \c ra .
+ * @param link Return address register to store address of next instruction (SPC).
  * @param set_meta Save jump target register to code cache meta data.
  * @param len Length of the original control flow instruction at \c read_adress .
  */
 void riscv_inline_hash_lookup(dbm_thread *thread_data, int basic_block,
 	uint16_t **write_p, uint16_t *read_address, enum reg rn, uint32_t offset, 
-	bool link, bool set_meta, int len);
+	enum reg link, bool set_meta, int len);
 
 /**
  * Scan next basic block until basic block exit instruction (jump or branch).

@@ -648,7 +648,7 @@ bool riscv_scanner_deliver_callbacks(dbm_thread *thread_data, mambo_cb_idx cb_id
 
 void riscv_inline_hash_lookup(dbm_thread *thread_data, int basic_block,
 	uint16_t **write_p, uint16_t *read_address, enum reg rn, uint32_t offset, 
-	bool link, bool set_meta, int len)
+	enum reg link, bool set_meta, int len)
 {
 	/*
 	 * Indirect Branch Lookup
@@ -657,7 +657,7 @@ void riscv_inline_hash_lookup(dbm_thread *thread_data, int basic_block,
 	 * 					|	PUSH	x10, x11			|	(Pseudo instruction)
 	 * 				**	|	PUSH	x12					|	(Pseudo instruction)
 	 * 				**	|	ADDI	x11, rn, offset		|	x11 = rn + offset
-	 * 				##	|	LI		ra, read_address+len|	len is 2 or 4
+	 * 				##	|	LI		link, read_address+len	len is 2 or 4
 	 * 					|	LI		x10, &hash_table	|
 	 * 					|	LI		x_tmp, HASH_MASK<<1	|	HASH_MASK = 0x7FFFF
 	 * 					|	AND		x_tmp, x_tmp, rn	|
@@ -680,8 +680,9 @@ void riscv_inline_hash_lookup(dbm_thread *thread_data, int basic_block,
 	 * 					|	JAL		x0, DISPATCHER		|
 	 * 					+-------------------------------+
 	 * 
-	 * ** if rn is x10, x11, or ra (if JALR or C.JR), or offset != 0
-	 * ## for JALR or C.JR
+	 * ** if rn is x10, x11, or return address register (if JALR or C.JALR), 
+	 * 	  or offset != 0
+	 * ## for JALR or C.JALR
 	 * 
 	 * [Size: 68-108 B]
 	 */
@@ -691,7 +692,7 @@ void riscv_inline_hash_lookup(dbm_thread *thread_data, int basic_block,
 	enum reg x_spc, x_tmp;
 	bool use_x12 = false;
 
-	if ((rn == x10) || (rn == x11) || (link && rn == ra) || offset != 0) {
+	if ((rn == x10) || (rn == x11) || (rn == link) || offset != 0) {
 		x_spc = x11;
 		x_tmp = x12;
 		use_x12 = true;
@@ -716,8 +717,8 @@ void riscv_inline_hash_lookup(dbm_thread *thread_data, int basic_block,
 	}
 
 	if (link)
-		//LI ra, read_address+len
-		riscv_copy_to_reg_64bits(write_p, ra, (uint64_t)read_address + len);
+		//LI link, read_address+len
+		riscv_copy_to_reg_64bits(write_p, link, (uint64_t)read_address + len);
 	
 	// LI x10, &hash_table
 	riscv_copy_to_reg_64bits(write_p, x10, 
@@ -1063,13 +1064,13 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 			write_p += 2;
 
 			if (rd != x0) {
-				riscv_copy_to_reg_64bits(&write_p, ra, (uint64_t)read_address + INST_32BIT);
+				riscv_copy_to_reg_64bits(&write_p, rd, (uint64_t)read_address + INST_32BIT);
 			}
 
 			riscv_branch_jump(thread_data, &write_p, basic_block, 0, INSERT_BRANCH);
 #else
 			riscv_inline_hash_lookup(thread_data, basic_block, &write_p, read_address, 
-				rs1, (uint32_t)imm12, (rd != 0), true, INST_32BIT);
+				rs1, (uint32_t)imm12, rd, true, INST_32BIT);
 #endif
 			stop = true;
 			break;
@@ -1104,8 +1105,9 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 
 			riscv_branch_jump(thread_data, &write_p, basic_block, 0, INSERT_BRANCH);
 #else
+			enum reg rd = inst == RISCV_C_JALR ? ra : x0; 
 			riscv_inline_hash_lookup(thread_data, basic_block, &write_p, read_address, 
-				rs1, 0, (inst == RISCV_C_JALR), true, INST_16BIT);
+				rs1, 0, rd, true, INST_16BIT);
 #endif
 			stop = true;
 			break;
