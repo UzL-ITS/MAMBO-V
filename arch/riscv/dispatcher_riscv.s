@@ -38,6 +38,8 @@ push_x1_x31:
         SD      x29, 16(sp)
         SD      x30, 8(sp)
         SD      x31, 0(sp)
+        # Load gp of MAMBO context
+        LD      x3, gp_shadow
         RET
 
 .global pop_x1_x31
@@ -47,6 +49,8 @@ pop_x1_x31:
          * x1 to x31 exept for x2 (sp), x1 (ra), x10 and x11
          * NOTE: You may want to also pop ra after the subroutine.
          */
+        # Store gp of MAMBO context
+        SD      x3, gp_shadow, x5
         LD      x3, 208(sp)
         LD      x4, 200(sp)
         LD      x5, 192(sp)
@@ -116,6 +120,8 @@ push_x1_x31_full:
         SD      x29, 208(sp)
         SD      x30, 216(sp)
         SD      x31, 224(sp)
+        # Load gp of MAMBO context
+        LD      x3, gp_shadow
         RET
 
 pop_x1_x31_full:
@@ -125,6 +131,8 @@ pop_x1_x31_full:
          * WARNING: Must be paired with `push_x1_x31_full` not `push_x1_x31`!
          * NOTE: You may want to also pop ra after the subroutine.
          */
+        # Store gp of MAMBO context
+        SD      x3, gp_shadow, x5
         LD      x3, 0(sp)
         LD      x4, 8(sp)
         LD      x5, 16(sp)
@@ -336,6 +344,9 @@ deliver_signals_addr: .dword deliver_signals
 
 .global th_is_pending_ptr
 th_is_pending_ptr: .dword 0             # uint32 *
+
+.global gp_shadow
+gp_shadow: .dword 0
 
 .global end_of_dispatcher_s
 end_of_dispatcher_s:

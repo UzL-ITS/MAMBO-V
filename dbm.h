@@ -50,7 +50,7 @@
   #define ARCH_BYTE_ALIGN 4
 #endif
 // BASIC_BLOCK_SIZE should be a power of 2
-#define BASIC_BLOCK_SIZE 64 //TODO: For RISC-V maybe 128 due to 16 bit alignment
+#define BASIC_BLOCK_SIZE 128 //TODO: Improve memory footprint by lowering to 64
 #ifdef DBM_TRACES
   #define CODE_CACHE_SIZE 55000
 #else
@@ -339,6 +339,10 @@ extern void th_to_arm();
 extern void th_enter(void *stack, uintptr_t cc_addr);
 extern void send_self_signal();
 extern void syscall_wrapper_svc();
+#ifdef DBM_ARCH_RISCV64
+extern void* gp_shadow;
+extern uintptr_t gp_shadow_ptr;
+#endif
 
 int lock_thread_list(void);
 int unlock_thread_list(void);

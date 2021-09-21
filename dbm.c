@@ -64,10 +64,14 @@
 #define dispatcher_wrapper_offset     ((uintptr_t)dispatcher_trampoline - (uintptr_t)&start_of_dispatcher_s)
 #define syscall_wrapper_offset        ((uintptr_t)syscall_wrapper - (uintptr_t)&start_of_dispatcher_s)
 #define trace_head_incr_offset        ((uintptr_t)trace_head_incr - (uintptr_t)&start_of_dispatcher_s)
+#ifdef DBM_ARCH_RISCV64
+  #define gp_shadow_offset              ((uintptr_t)&gp_shadow - (uintptr_t)&start_of_dispatcher_s)
+#endif
 
 uintptr_t page_size;
 dbm_global global_data;
 __thread dbm_thread *current_thread;
+uintptr_t gp_shadow_ptr = 0;
 
 void flush_code_cache(dbm_thread *thread_data) {
   thread_data->was_flushed = true;
@@ -677,6 +681,10 @@ void main(int argc, char **argv, char **envp) {
 
   uintptr_t block_address = scan(thread_data, (uint16_t *)entry_address, ALLOCATE_BB);
   debug("Address of first basic block is: 0x%x\n", block_address);
+
+#ifdef DBM_ARCH_RISCV64
+  gp_shadow_ptr = (uintptr_t)&thread_data->code_cache[0] + gp_shadow_offset;
+#endif
 
   #define ARGDIFF 2
   elf_run(block_address, argv[1], argc-ARGDIFF, &argv[ARGDIFF], envp, &auxv);
