@@ -17,7 +17,7 @@ OPTS+=-DDBM_LINK_TBZ
 OPTS+=-DDBM_TB_DIRECT #-DFAST_BT
 OPTS+=-DLINK_BX_ALT
 OPTS+=-DDBM_INLINE_HASH
-OPTS+=-DDBM_TRACES #-DTB_AS_TRACE_HEAD #-DBLXI_AS_TRACE_HEAD
+#OPTS+=-DDBM_TRACES #-DTB_AS_TRACE_HEAD #-DBLXI_AS_TRACE_HEAD
 #OPTS+=-DCC_HUGETLB -DMETADATA_HUGETLB
 
 CFLAGS+=-D_GNU_SOURCE -g -std=gnu99 -O2
@@ -50,10 +50,23 @@ ifeq ($(ARCH),aarch64)
 	SOURCES += arch/aarch64/scanner_a64.c
 	SOURCES += api/emit_a64.c
 endif
+ifeq ($(ARCH),riscv64)
+	ARCH_OPTS = -DDBM_ARCH_RISCV64
+	HEADERS += api/emit_riscv.h
+	LDFLAGS += -Wl,-Ttext-segment=$(or $(TEXT_SEGMENT),0x40000000)
+	PIE += pie/pie-riscv-field-decoder.o pie/pie-riscv-encoder.o pie/pie-riscv-decoder.o
+	SOURCES += arch/riscv/dispatcher_riscv.s arch/riscv/dispatcher_riscv.c
+	SOURCES += arch/riscv/scanner_riscv.c
+	SOURCES += api/emit_riscv.c
+endif
 
 ifdef PLUGINS
 	CFLAGS += -DPLUGINS_NEW
 endif
+
+# HACK: Add ARCH_OPTS to CFLAGS because of some voodoo in this makefile not recognizing
+# it when building the `elf/symbol_parser.o` target.
+CFLAGS += $(ARCH_OPTS)
 
 .PHONY: pie clean cleanall
 
