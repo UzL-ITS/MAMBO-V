@@ -66,12 +66,14 @@
 #define trace_head_incr_offset        ((uintptr_t)trace_head_incr - (uintptr_t)&start_of_dispatcher_s)
 #ifdef DBM_ARCH_RISCV64
   #define gp_shadow_offset              ((uintptr_t)&gp_shadow - (uintptr_t)&start_of_dispatcher_s)
+  #define tp_shadow_offset              ((uintptr_t)&tp_shadow - (uintptr_t)&start_of_dispatcher_s)
 #endif
 
 uintptr_t page_size;
 dbm_global global_data;
 __thread dbm_thread *current_thread;
-uintptr_t gp_shadow_ptr = 0;
+uintptr_t gp_shadow_ptr;
+uintptr_t tp_shadow_ptr;
 
 void flush_code_cache(dbm_thread *thread_data) {
   thread_data->was_flushed = true;
@@ -684,6 +686,7 @@ void main(int argc, char **argv, char **envp) {
 
 #ifdef DBM_ARCH_RISCV64
   gp_shadow_ptr = (uintptr_t)&thread_data->code_cache[0] + gp_shadow_offset;
+  tp_shadow_ptr = (uintptr_t)&thread_data->code_cache[0] + tp_shadow_offset;
 #endif
 
   #define ARGDIFF 2

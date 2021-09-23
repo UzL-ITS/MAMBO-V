@@ -62,9 +62,11 @@ push_gen_regs:
   SD x29, 16(sp)
   SD x30, 8(sp)
   SD x31, 0(sp)
-  # Load gp of MAMBO context
+  # Load gp and tp of MAMBO context
   LD gp, gp_shadow_ptr
   LD gp, 0(gp)
+  LD tp, tp_shadow_ptr
+  LD tp, 0(tp)
   RET
 
 .global pop_gen_regs
@@ -74,9 +76,11 @@ pop_gen_regs:
    * x1 to x31 exept for x2 (sp), x1 (ra), x10 and x11
    * NOTE: You may want to also pop ra after the subroutine.
    */
-  # Store gp of MAMBO context
+  # Store gp and tp of MAMBO context
   LD t0, gp_shadow_ptr
   SD gp, 0(t0)
+  LD t0, tp_shadow_ptr
+  SD tp, 0(t0)
   LD x3, 208(sp)
   LD x4, 200(sp)
   LD x5, 192(sp)
@@ -137,6 +141,8 @@ dbm_client_entry:
   MV sp, a1
   LD t0, gp_shadow_ptr
   SD gp, 0(t0)
+  LD t0, tp_shadow_ptr
+  SD tp, 0(t0)
   ADDI sp, sp, -16      # The scanner inserted code to pop a0 and a1, so push zeros before
   SD zero, 0(sp)
   SD zero, 8(sp)
@@ -532,6 +538,8 @@ push_all_but_params:
   # Load gp of MAMBO context
   LD gp, gp_shadow_ptr
   LD gp, 0(gp)
+  LD tp, tp_shadow_ptr
+  LD tp, 0(tp)
   RET
 
 pop_all_but_params:
@@ -541,6 +549,8 @@ pop_all_but_params:
   # Store gp of MAMBO context
   LD t0, gp_shadow_ptr
   SD gp, 0(t0)
+  LD t0, tp_shadow_ptr
+  SD tp, 0(t0)
   LD      x3, 0(sp)
   LD      x4, 8(sp)
   LD      x5, 16(sp)

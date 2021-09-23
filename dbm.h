@@ -342,6 +342,8 @@ extern void syscall_wrapper_svc();
 #ifdef DBM_ARCH_RISCV64
 extern void* gp_shadow;
 extern uintptr_t gp_shadow_ptr;
+extern void* tp_shadow;
+extern uintptr_t tp_shadow_ptr;
 #endif
 
 int lock_thread_list(void);
