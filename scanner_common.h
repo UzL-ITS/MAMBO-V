@@ -117,6 +117,20 @@ void riscv_pop_helper(uint16_t **write_p, enum reg reg);
 int riscv_branch_imm_helper(uint16_t **write_p, uint64_t target, bool link);
 
 /**
+ * Write code to jump to a target more than 1 MiB away (range rougthly +-2GiB GiB). 
+ * @warning The `tr` register will be overwritten! Make sure it does not change the 
+ *  context of the client. If `tr` is pushed before, it can be popped after the jump.
+ * @param write_p Pointer to the writing location.
+ * @param target Target address.
+ * @param link Store address of the next instruction in the link register \c ra .
+ * @param tr Temporary scratch register used to calculate the target address.
+ * @retval  0:  Succesfully written
+ * @retval  -1: Target not 16 bit aligned
+ * @retval  -2: Target not in range
+ */
+int riscv_large_jump_helper(uint16_t **write_p, uint64_t target, bool link, enum reg tr);
+
+/**
  * Write code to branch to a target and link it in the code cache.
  * @param thread_data Thread data of current thread.
  * @param write_p Pointer to the writing location.

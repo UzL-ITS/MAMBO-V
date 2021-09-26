@@ -143,6 +143,47 @@ int riscv_branch_imm_helper(uint16_t **write_p, uint64_t target, bool link)
 	return 0;
 }
 
+int riscv_large_jump_helper(uint16_t **write_p, uint64_t target, bool link, enum reg tr)
+{
+	/*
+	 * Large relative jump
+	 *					+-------------------------------+
+	 *					|	AUIPC	tr, offset[31:12] + offset[11]
+	 *					|	JALR	link, offset[11:0](tr)
+	 *					+-------------------------------+
+	 * 
+	 * //! WARNING: Inserted code overrides register tr!
+	 * 
+	 * [Size: 8 B]
+	 */
+	int64_t offset = target - (uint64_t)*write_p;
+
+	if((offset & 1) != 0)
+		return -1;
+
+	/*
+	 * NOTE: The upper boundary is 0x7ffff7ff because 12th bit is sort of a second sign
+	 * bit. 0x7ffff800 offset and above cannot be achieved by AUIPC + 12 bit signed
+	 * offset. It also causes the lower boundary to be -0x80000800 because with AUIPC
+	 * up to 0x80000000 can be subtracted and an additional 0x800 can be subtracted
+	 * with the jump offset.
+	 */
+	if (offset >= -0x80000800L && offset < 0x7ffff800L) {
+		int immhi = (offset >> 12) + ((offset >> 11) & 1);
+		int immlo = offset & 0xFFF;
+		// AUIPC tr, immhi
+		riscv_auipc(write_p, tr, immhi);
+		*write_p += 2;
+		// zero or ra (x0 or x1) are used as link registers (x0 means no link)
+		// JALR link, immlo(rt)
+		riscv_jalr(write_p, link, tr, immlo);
+		*write_p += 2;
+	} else {
+		return -2;
+	}
+	return 0;
+}
+
 void riscv_cc_branch(dbm_thread *thread_data, uint16_t *write_p, uint64_t target)
 {
 	riscv_branch_imm_helper(&write_p, target, false);

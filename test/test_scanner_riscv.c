@@ -423,6 +423,73 @@ void test_riscv_branch_imm_helper()
 	TEST_ASSERT_EQUAL_PTR(&w[6], write_p);
 }
 
+void test_riscv_large_jump_helper()
+{
+	uint16_t w[37] = {0}; // TODO: Array
+	uint16_t *write_p = w;
+
+	int ret;
+
+	ret = riscv_large_jump_helper(&write_p, (uint64_t)write_p + 0, false, x12);
+	TEST_ASSERT_EQUAL(0, ret);
+	ret = riscv_large_jump_helper(&write_p, (uint64_t)write_p - 1, false, x12);
+	TEST_ASSERT_EQUAL(-1, ret);
+	ret = riscv_large_jump_helper(&write_p, (uint64_t)write_p - 2, false, x12);
+	TEST_ASSERT_EQUAL(0, ret);
+	ret = riscv_large_jump_helper(&write_p, (uint64_t)write_p + UINT32_MAX + 1, false, x12);
+	TEST_ASSERT_EQUAL(-2, ret);
+	ret = riscv_large_jump_helper(&write_p, (uint64_t)write_p + INT32_MAX - 1, false, x12);
+	TEST_ASSERT_EQUAL(-2, ret);
+	ret = riscv_large_jump_helper(&write_p, (uint64_t)write_p + 0x7ffff800, false, x12);
+	TEST_ASSERT_EQUAL(-2, ret);
+	ret = riscv_large_jump_helper(&write_p, (uint64_t)write_p + 0x7ffff7fe, false, x12);
+	TEST_ASSERT_EQUAL(0, ret);
+	ret = riscv_large_jump_helper(&write_p, (uint64_t)write_p + INT32_MIN, false, x12);
+	TEST_ASSERT_EQUAL(0, ret);
+	ret = riscv_large_jump_helper(&write_p, (uint64_t)write_p - 0x80000800L, false, x12);
+	TEST_ASSERT_EQUAL(0, ret);
+	ret = riscv_large_jump_helper(&write_p, (uint64_t)write_p - 0x80000802L, false, x12);
+	TEST_ASSERT_EQUAL(-2, ret);
+	ret = riscv_large_jump_helper(&write_p, (uint64_t)write_p + (int)0x55555554, false, x12);
+	TEST_ASSERT_EQUAL(0, ret);
+	ret = riscv_large_jump_helper(&write_p, (uint64_t)write_p + (int)0xAAAAAAAA, false, x12);
+	TEST_ASSERT_EQUAL(0, ret);
+	ret = riscv_large_jump_helper(&write_p, (uint64_t)write_p + 0x19C8, false, x12);
+	TEST_ASSERT_EQUAL(0, ret);
+	ret = riscv_large_jump_helper(&write_p, (uint64_t)write_p + 0x14141AC, true, x12);
+	TEST_ASSERT_EQUAL(0, ret);
+
+	TEST_ASSERT_EQUAL_HEX32(0x00000617, *(uint32_t*)&w[0]);		// AUIPC x12, 0
+	TEST_ASSERT_EQUAL_HEX32(0x00060067, *(uint32_t*)&w[2]);		// JALR x0, 0(x12)
+
+	TEST_ASSERT_EQUAL_HEX32(0x00000617, *(uint32_t*)&w[4]);		// AUIPC x12, 0
+	TEST_ASSERT_EQUAL_HEX32(0xFFE60067, *(uint32_t*)&w[6]);		// JALR x0, -2(x12)
+
+	TEST_ASSERT_EQUAL_HEX32(0x7FFFF617, *(uint32_t*)&w[8]);		// AUIPC x12, 0x7FFFF
+	TEST_ASSERT_EQUAL_HEX32(0x7FE60067, *(uint32_t*)&w[10]);	// JALR x0, 2046(x12)
+
+	TEST_ASSERT_EQUAL_HEX32(0x80000617, *(uint32_t*)&w[12]);	// AUIPC x12, -0x80000
+	TEST_ASSERT_EQUAL_HEX32(0x00060067, *(uint32_t*)&w[14]);	// JALR x0, 0(x12)
+
+	TEST_ASSERT_EQUAL_HEX32(0x80000617, *(uint32_t*)&w[16]);	// AUIPC x12, -0x80000
+	TEST_ASSERT_EQUAL_HEX32(0x80060067, *(uint32_t*)&w[18]);	// JALR x0, -2048(x12)
+
+	TEST_ASSERT_EQUAL_HEX32(0x55555617, *(uint32_t*)&w[20]);	// AUIPC x12, 0x55555
+	TEST_ASSERT_EQUAL_HEX32(0x55460067, *(uint32_t*)&w[22]);	// JALR x0, 1364(x12)
+
+	TEST_ASSERT_EQUAL_HEX32(0xAAAAB617, *(uint32_t*)&w[24]);	// AUIPC x12, 0xAAAAB
+	TEST_ASSERT_EQUAL_HEX32(0xAAA60067, *(uint32_t*)&w[26]);	// JALR x0, -1366(x12)
+
+	TEST_ASSERT_EQUAL_HEX32(0x00002617, *(uint32_t*)&w[28]);	// AUIPC x12, 2
+	TEST_ASSERT_EQUAL_HEX32(0x9C860067, *(uint32_t*)&w[30]);	// JALR x0, -1592(x12)
+
+	TEST_ASSERT_EQUAL_HEX32(0x01414617, *(uint32_t*)&w[32]);	// AUIPC x12, 0x1414
+	TEST_ASSERT_EQUAL_HEX32(0x1AC600E7, *(uint32_t*)&w[34]);	// JALR x0, 428(x12)
+
+	// Check pointer
+	TEST_ASSERT_EQUAL_PTR(&w[36], write_p);
+}
+
 void test_riscv_copy_to_reg_32bits()
 {
 	uint16_t w[23] = {0};
@@ -982,6 +1049,7 @@ int main(void)
 	RUN_TEST(test_riscv_push_helper);
 	RUN_TEST(test_riscv_pop_helper);
 	RUN_TEST(test_riscv_branch_imm_helper);
+	RUN_TEST(test_riscv_large_jump_helper);
 	RUN_TEST(test_riscv_copy_to_reg_32bits);
 	RUN_TEST(test_riscv_copy_to_reg_64bits);
 	RUN_TEST(test_riscv_b_cond_helper);
