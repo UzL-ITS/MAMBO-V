@@ -173,7 +173,8 @@ pop_x1_x31_full:
 dispatcher_trampoline:
         # PUSH all general purpose registers but x10, x11
         # x10 and x11 are pushed by the exit stub
-        C.ADDI  sp, -24
+        LD      x12, 0(sp)              # Restore temp jump register
+        C.ADDI  sp, -16                 # 24 byte allocated
         SD      ra, 0(sp)
         SD      x10, 16(sp)
         JAL     push_x1_x31
@@ -200,7 +201,7 @@ disp_thread_data: .dword 0
 .global syscall_wrapper
 .global syscall_wrapper_svc
 syscall_wrapper:
-        C.ADDI  sp, -8
+        LD      x12, 0(sp)              # Restore temp jump register
         SD      ra, 0(sp)
         JAL     push_x1_x31_full
 

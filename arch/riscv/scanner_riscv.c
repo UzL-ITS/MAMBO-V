@@ -382,13 +382,15 @@ void riscv_branch_jump(dbm_thread *thread_data, uint16_t **write_p, int basic_bl
 	 *					+-------------------------------+
 	 *				**	|	LI		x10, target			|	dispatcher: target
 	 *				##	|	LI		x11, basic_block	|	dispatcher: source_index
-	 *					|	JAL		DISPATCHER			|	C.J used if possible
+	 *				##	|	J		DISPATCHER			|	Large jump
 	 *					+-------------------------------+
 	 *
 	 * ** if REPLACE_TARGET
 	 * ## if INSERT_BRANCH
 	 * 
-	 * [Size: 4-12 B]
+	 * //! WARNING: Inserted code may override registers x10, x11 and x12!
+	 * 
+	 * [Size: 0-30 B]
 	 */
 	debug("riscv_branch_jump: RISC-V branch target: 0x%lx\n", target);
 
@@ -398,7 +400,7 @@ void riscv_branch_jump(dbm_thread *thread_data, uint16_t **write_p, int basic_bl
 
 	if (flags & INSERT_BRANCH) {
 		riscv_copy_to_reg_32bits(write_p, x11, basic_block);
-		riscv_branch_imm_helper(write_p, thread_data->dispatcher_addr, false);
+		riscv_large_jump_helper(write_p, thread_data->dispatcher_addr, false, x12);
 	}
 }
 
@@ -425,46 +427,61 @@ void riscv_branch_jump_cond(dbm_thread *thread_data, uint16_t **write_p,
 	 * 					|	NOP							|	Space for lookup jump
 	 * 					|	NOP							|		inserted by dispatcher
 	 * 					|								|		(see dispatcher_riscv.c)
-	 * 					|	PUSH	x10, x11			|	(Pseudo instruction)
+	 * 					|	PUSH	x10, x11, x12		|	(Pseudo instruction)
 	 * 					|								|
-	 * 					|	B(cond)	branch_target:		|
+	 * 					|	B(cond)	branch_target		|
 	 * 					|								|
-	 * 					|	LI		x11, basic_block 	|	dispatcher: source_index
 	 * 					|	LI		x10, read_address+len	dispatcher: target
-	 * 					|	JAL		DISPATCHER			|
+	 * 					|	C.J		branch				|
 	 * 					|								|
 	 * 					| branch_target:				|
-	 * 					|	LI		x11, basic_block 	|	dispatcher: source_index
 	 * 					|	LI		x10, target			|	dispatcher: target
-	 * 					|	JAL		DISPATCHER			|
+	 * 					|								|
+	 * 					| branch:						|
+	 * 					|	LI		x11, basic_block	|	dispatcher: source_index
+	 * 					|	J		DISPATCHER			|	Long jump
 	 * 					+-------------------------------+
-	 * [Size: 76 B]
+	 * [Size: 80 B]
 	 */
-	uint16_t *cond_branch;
+	uint16_t *cond_branch, *branch_disp;
 
 	debug("riscv_branch_jump_cond: RISC-V branch target: 0x%lx\n", target);
 
+	// NOP
 	**(uint32_t **)write_p = NOP_INSTRUCTION;
 	*write_p += 2;
+	// NOP
 	**(uint32_t **)write_p = NOP_INSTRUCTION;
 	*write_p += 2;
 
-	riscv_save_regs(write_p, (m_x10 | m_x11));
+	// PUSH x10, x11, x12
+	riscv_save_regs(write_p, (m_x10 | m_x11 | m_x12));
 
+	// B(cond) branch_target (added later)
 	cond_branch = *write_p;
 	// Write NOPs in case of 16 bit instruction inserted
 	**(uint32_t **)write_p = NOP_INSTRUCTION;
 	*write_p += 2;
 
-	riscv_copy_to_reg_32bits(write_p, x11, basic_block);
+	// LI x10, read_address+len
 	riscv_copy_to_reg_64bits(write_p, x10, (uint64_t)read_address + len);
-	riscv_branch_imm_helper(write_p, thread_data->dispatcher_addr, false);
+	// C.J branch (added later)
+	branch_disp = *write_p;
+	(*write_p)++;
 
+	// branch_target:
+	// Insert "B(cond) branch_target" at cond_branch
 	riscv_b_cond_helper(&cond_branch, (uint64_t)*write_p, cond);
-
-	riscv_copy_to_reg_32bits(write_p, x11, basic_block);
+	// LI x10, target
 	riscv_copy_to_reg_64bits(write_p, x10, target);
-	riscv_branch_imm_helper(write_p, thread_data->dispatcher_addr, false);
+
+	// branch:
+	// Insert "C.J branch" at branch_disp
+	riscv_branch_imm_helper(&branch_disp, (uint64_t)*write_p, false);
+	// LI x11, basic_block
+	riscv_copy_to_reg_32bits(write_p, x11, basic_block);
+	// J DISPATCHER
+	riscv_large_jump_helper(write_p, thread_data->dispatcher_addr, false, x12);
 }
 
 void riscv_check_free_space(dbm_thread *thread_data, uint16_t **write_p,
@@ -695,8 +712,7 @@ void riscv_inline_hash_lookup(dbm_thread *thread_data, int basic_block,
 	 * Indirect Branch Lookup
 	 * 
 	 * 					+-------------------------------+
-	 * 					|	PUSH	x10, x11			|	(Pseudo instruction)
-	 * 				**	|	PUSH	x12					|	(Pseudo instruction)
+	 * 					|	PUSH	x10, x11, x12		|	(Pseudo instruction)
 	 * 				**	|	ADDI	x11, rn, offset		|	x11 = rn + offset
 	 * 				##	|	LI		link, read_address+len	len is 2 or 4
 	 * 					|	LI		x10, &hash_table	|
@@ -711,21 +727,20 @@ void riscv_inline_hash_lookup(dbm_thread *thread_data, int basic_block,
 	 * 					|	C.BEQZ	x_tmp, not_found	|
 	 * 					|	BNE		x_tmp, rn, lin_probing
 	 * 					|	LD		x10, -8(x10)		|	load code_cache_address
-	 * 				**	|	POP		x12					|	(Pseudo instruction)
+	 * 					|	POP		x12					|	(Pseudo instruction)
 	 * 					|	C.JR	x10					|
 	 * 					|								|
 	 * 					| not_found:					|
 	 * 					|	C.MV	x10, rn				|	dispatcher: target
 	 * 					|	LI		x11, basic_block	|	dispatcher: source_index
-	 * 				**	|	POP		x12					|	(Pseudo instruction)
-	 * 					|	JAL		x0, DISPATCHER		|
+	 * 					|	J		DISPATCHER			|	Large jump
 	 * 					+-------------------------------+
 	 * 
 	 * ** if rn is x10, x11, or return address register (if JALR or C.JALR), 
 	 * 	  or offset != 0
 	 * ## for JALR or C.JALR
 	 * 
-	 * [Size: 68-108 B]
+	 * [Size: 88-114 B]
 	 */
 
 	uint16_t *lin_probing;
@@ -746,15 +761,13 @@ void riscv_inline_hash_lookup(dbm_thread *thread_data, int basic_block,
 		thread_data->code_cache_meta[basic_block].rn = x_spc;
 	}
 
-	// PUSH x10, x11
-	riscv_save_regs(write_p, (m_x10 | m_x11));
+	// PUSH x10, x11, x12
+	riscv_save_regs(write_p, (m_x10 | m_x11 | m_x12));
 
 	if (use_x12) {
-		// PUSH x12
-		riscv_push_helper(write_p, x12);
-			//ADDI x11, rn, offset
-			riscv_addi(write_p, x_spc, rn, offset);
-			*write_p += 2;
+		//ADDI x11, rn, offset
+		riscv_addi(write_p, x_spc, rn, offset);
+		*write_p += 2;
 	}
 
 	if (link)
@@ -804,9 +817,8 @@ void riscv_inline_hash_lookup(dbm_thread *thread_data, int basic_block,
 	riscv_ld(write_p, x10, x10, -8);
 	*write_p += 2;
 
-	if (use_x12)
-		// POP x12
-		riscv_pop_helper(write_p, x12);
+	// POP x12
+	riscv_pop_helper(write_p, x12);
 	
 	// C.JR x10
 	riscv_c_jr(write_p, x10);
@@ -822,12 +834,8 @@ void riscv_inline_hash_lookup(dbm_thread *thread_data, int basic_block,
 	// LI x11, basic_block
 	riscv_copy_to_reg_32bits(write_p, x11, basic_block);
 
-	if (use_x12)
-		// POP x12
-		riscv_pop_helper(write_p, x12);
-
-	// JAL x0, DISPATCHER
-	riscv_branch_imm_helper(write_p, (uint64_t)thread_data->dispatcher_addr, false);
+	// J DISPATCHER
+	riscv_large_jump_helper(write_p, (uint64_t)thread_data->dispatcher_addr, false, x12);
 }
 
 size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_block,
@@ -874,6 +882,7 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 		riscv_save_regs(&write_p, (m_x1 | m_x11));
 
 		riscv_copy_to_reg_32bits(&write_p, x11, (int)basic_block);
+		// TODO: [traces] Use large jump
 		riscv_branch_imm_helper(&write_p, thread_data->trace_head_incr_addr, true);
 
 		riscv_restore_regs(&write_p, (m_x1 | m_x11));
@@ -944,7 +953,7 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 			*(uint32_t *)write_p = NOP_INSTRUCTION; // Reserves space for linking branch.
 			write_p += 2;
 #endif
-			riscv_save_regs(&write_p, (m_x10 | m_x11));
+			riscv_save_regs(&write_p, (m_x10 | m_x11 | m_x12));
 			riscv_branch_jump(thread_data, &write_p, basic_block, target, 
 				(REPLACE_TARGET | INSERT_BRANCH));
 			stop = true;
@@ -1008,7 +1017,7 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 			thread_data->code_cache_meta[basic_block].branch_cache_status = 0;
 #endif
 
-			riscv_check_free_space(thread_data, &write_p, &data_p, 76, basic_block);
+			riscv_check_free_space(thread_data, &write_p, &data_p, 80, basic_block);
 			riscv_branch_jump_cond(thread_data, &write_p, basic_block, target, 
 				read_address, &cond, INST_32BIT);
 			stop = true;
@@ -1051,7 +1060,7 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 			thread_data->code_cache_meta[basic_block].branch_cache_status = 0;
 #endif
 
-			riscv_check_free_space(thread_data, &write_p, &data_p, 76, basic_block);
+			riscv_check_free_space(thread_data, &write_p, &data_p, 80, basic_block);
 			riscv_branch_jump_cond(thread_data, &write_p, basic_block, target, 
 				read_address, &cond, INST_16BIT);
 			stop = true;
@@ -1089,8 +1098,8 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 			riscv_jalr_decode_fields(read_address, &rd, &rs1, &imm12);
 
 #ifdef DBM_INLINE_HASH
-			// Check for 108 bytes (worst case) + 24 bytes for dispatcher jump = 132
-			riscv_check_free_space(thread_data, &write_p, &data_p, 132, basic_block);
+			// Check for 114 bytes (worst case inline hash lookup)
+			riscv_check_free_space(thread_data, &write_p, &data_p, 114, basic_block);
 #endif
 
 			thread_data->code_cache_meta[basic_block].exit_branch_type = 
@@ -1099,7 +1108,7 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 			thread_data->code_cache_meta[basic_block].rn = rs1;
 
 #ifndef DBM_INLINE_HASH
-			riscv_save_regs(&write_p, (m_x10 | m_x11));
+			riscv_save_regs(&write_p, (m_x10 | m_x11 | m_x12));
 
 			riscv_addi(&write_p, x10, rs1, imm12);
 			write_p += 2;
@@ -1125,8 +1134,8 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 			riscv_c_jr_decode_fields(read_address, &rs1);
 
 #ifdef DBM_INLINE_HASH
-			// Check for 108 bytes (worst case) + 24 bytes for dispatcher jump = 132
-			riscv_check_free_space(thread_data, &write_p, &data_p, 132, basic_block);
+			// Check for 114 bytes (worst case inline hash lookup)
+			riscv_check_free_space(thread_data, &write_p, &data_p, 114, basic_block);
 #endif
 
 			thread_data->code_cache_meta[basic_block].exit_branch_type = 
@@ -1135,7 +1144,7 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 			thread_data->code_cache_meta[basic_block].rn = rs1;
 
 #ifndef DBM_INLINE_HASH
-			riscv_save_regs(&write_p, (m_x10 | m_x11));
+			riscv_save_regs(&write_p, (m_x10 | m_x11 | m_x12));
 
 			riscv_c_mv(&write_p, x10, rs1);
 			write_p++;
@@ -1157,10 +1166,11 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 		case RISCV_ECALL:
 			// Instrument system calls
 			debug("Syscall detected\n");
-			riscv_save_regs(&write_p, (m_x1 | m_x8)); // Restored by syscall_wrapper
+			riscv_save_regs(&write_p, (m_x1 | m_x8 | m_x12)); // Restored by syscall_wrapper
 			riscv_copy_to_reg_64bits(&write_p, x8, (uint64_t)read_address + 4);
-			riscv_branch_imm_helper(&write_p, thread_data->syscall_wrapper_addr, true);
-			// x1 and x8 are replaced with x10 and x11 in stack, so they must be popped at this point
+			riscv_large_jump_helper(&write_p, thread_data->syscall_wrapper_addr, true, x12);
+			// x1 and x8 are replaced with x10 and x11 in stack, so they must be popped
+			// at this point. x12 was already popped by syscall_wrapper.
 			riscv_restore_regs(&write_p, (m_x10 | m_x11));
 
 			riscv_scanner_deliver_callbacks(thread_data, POST_BB_C, &read_address, -1,
@@ -1363,7 +1373,7 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 		case RISCV_INVALID:
 		case RISCV_C_ILLEGAL:
 			if (read_address != start_scan) {
-				riscv_save_regs(&write_p, (m_x10 | m_x11));
+				riscv_save_regs(&write_p, (m_x10 | m_x11 | m_x12));
 				riscv_branch_jump(thread_data, &write_p, basic_block, 
 					(uint64_t)read_address, (REPLACE_TARGET | INSERT_BRANCH));
 				stop = true;
