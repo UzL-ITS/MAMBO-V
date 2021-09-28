@@ -76,14 +76,14 @@ void riscv_push_helper(uint16_t **write_p, enum reg reg)
 	 * Push register
 	 * 					+-------------------------------+
 	 * 					|	C.ADDI	sp, -8				|
-	 * 					|	SD		reg, 0(sp)			|
+	 *					|	C.SDSP	reg, 0				|
 	 * 					+-------------------------------+
-	 * [Size: 6 B]
+	 * [Size: 4 B]
 	 */
 	riscv_c_addi(write_p, sp, 1, 24);
 	(*write_p)++;
-	riscv_sd(write_p, reg, sp, 0, 0);
-	*write_p += 2;
+	riscv_c_sdsp(write_p, reg, 0);
+	(*write_p)++;
 }
 
 void riscv_pop_helper(uint16_t **write_p, enum reg reg)
@@ -91,13 +91,13 @@ void riscv_pop_helper(uint16_t **write_p, enum reg reg)
 	/*
 	 * Pop register
 	 * 					+-------------------------------+
-	 *					|	LD		reg, 0(sp)			|
+	 * 					|	C.LDSP	reg, 0				|
 	 * 					|	C.ADDI	sp, 8				|
 	 * 					+-------------------------------+
-	 * [Size: 6 B]
+	 * [Size: 4 B]
 	 */
-	riscv_ld(write_p, reg, sp, 0);
-	*write_p += 2;
+	riscv_c_ldsp(write_p, reg, 0, 0);
+	(*write_p)++;
 	riscv_c_addi(write_p, sp, 0, 8);
 	(*write_p)++;
 }
@@ -441,7 +441,7 @@ void riscv_branch_jump_cond(dbm_thread *thread_data, uint16_t **write_p,
 	 * 					|	LI		x11, basic_block	|	dispatcher: source_index
 	 * 					|	J		DISPATCHER			|	Long jump
 	 * 					+-------------------------------+
-	 * [Size: 80 B]
+	 * [Size: 72 B]
 	 */
 	uint16_t *cond_branch, *branch_disp;
 
@@ -740,7 +740,7 @@ void riscv_inline_hash_lookup(dbm_thread *thread_data, int basic_block,
 	 * 	  or offset != 0
 	 * ## for JALR or C.JALR
 	 * 
-	 * [Size: 88-114 B]
+	 * [Size: 80-104 B]
 	 */
 
 	uint16_t *lin_probing;
@@ -1017,7 +1017,7 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 			thread_data->code_cache_meta[basic_block].branch_cache_status = 0;
 #endif
 
-			riscv_check_free_space(thread_data, &write_p, &data_p, 80, basic_block);
+			riscv_check_free_space(thread_data, &write_p, &data_p, 72, basic_block);
 			riscv_branch_jump_cond(thread_data, &write_p, basic_block, target, 
 				read_address, &cond, INST_32BIT);
 			stop = true;
@@ -1060,7 +1060,7 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 			thread_data->code_cache_meta[basic_block].branch_cache_status = 0;
 #endif
 
-			riscv_check_free_space(thread_data, &write_p, &data_p, 80, basic_block);
+			riscv_check_free_space(thread_data, &write_p, &data_p, 72, basic_block);
 			riscv_branch_jump_cond(thread_data, &write_p, basic_block, target, 
 				read_address, &cond, INST_16BIT);
 			stop = true;
@@ -1099,7 +1099,7 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 
 #ifdef DBM_INLINE_HASH
 			// Check for 114 bytes (worst case inline hash lookup)
-			riscv_check_free_space(thread_data, &write_p, &data_p, 114, basic_block);
+			riscv_check_free_space(thread_data, &write_p, &data_p, 104, basic_block);
 #endif
 
 			thread_data->code_cache_meta[basic_block].exit_branch_type = 
@@ -1135,7 +1135,7 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 
 #ifdef DBM_INLINE_HASH
 			// Check for 114 bytes (worst case inline hash lookup)
-			riscv_check_free_space(thread_data, &write_p, &data_p, 114, basic_block);
+			riscv_check_free_space(thread_data, &write_p, &data_p, 104, basic_block);
 #endif
 
 			thread_data->code_cache_meta[basic_block].exit_branch_type = 

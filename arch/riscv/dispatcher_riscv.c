@@ -70,7 +70,7 @@ void dispatcher_riscv(dbm_thread *thread_data, uint32_t source_index,
 		 * Overwrite code written by riscv_branch_jump_cond to jump directly to the
 		 * target block.
 	 	 *              +-------------------------------+
-	 	 *      NEW     |   JAL     x0, block_address+12|   previously NOP
+	 	 *      NEW     |   JAL     x0, block_address+8 |   previously NOP
 	 	 *          ##  |   NOP                         |   (everything else unchanged)
 	 	 *          ##  |                               |
 	 	 *          ##  |   PUSH    x10, x11            |
@@ -89,11 +89,11 @@ void dispatcher_riscv(dbm_thread *thread_data, uint32_t source_index,
 		 * 
 		 * ## dead code
 	 	 */
-		/* +12 added to block_address to jump over the pops of x10 and x11. There are
+		/* +8 added to block_address to jump over the pops of x10 and x11. There are
 		 * only pushed and needed to be popped if the dispatcher was invoked before.
 		 */
-		riscv_cc_branch(thread_data, branch_addr, block_address + 12);
-		__clear_cache((void *)branch_addr, (void *)branch_addr + 12 + 1);
+		riscv_cc_branch(thread_data, branch_addr, block_address + 8);
+		__clear_cache((void *)branch_addr, (void *)branch_addr + 8 + 1);
 		thread_data->code_cache_meta[source_index].branch_cache_status = BRANCH_LINKED;
 		break;
 	#endif
@@ -132,7 +132,7 @@ void dispatcher_riscv(dbm_thread *thread_data, uint32_t source_index,
 		 * Overwrite secound NOP from riscv_branch_jump_cond with branch to block address
 	 	 *              +-------------------------------+
 	 	 *      **   |- |   B(cond) rs1, rs2, .+8       |
-	 	 *      NEW  |  |   JAL     block_address+12    |   previously NOP
+	 	 *      NEW  |  |   JAL     block_address+8     |   previously NOP
 	 	 *           |  |                               |
 	 	 *           -> |   PUSH    x10, x11            |   (everything else unchanged)
 	 	 *              |                               |
@@ -150,10 +150,10 @@ void dispatcher_riscv(dbm_thread *thread_data, uint32_t source_index,
 		 * 
 		 * ** if conditional exit
 	 	 */
-		/* +12 added to block_address to jump over the pops of x10 and x11. There are
+		/* +8 added to block_address to jump over the pops of x10 and x11. There are
 		 * only pushed and needed to be popped if the dispatcher was invoked before.
 		 */
-		riscv_cc_branch(thread_data, branch_addr, block_address + 12);
+		riscv_cc_branch(thread_data, branch_addr, block_address + 8);
 		branch_addr += 2;
 
 		if (other_target_in_cache) {
@@ -163,9 +163,9 @@ void dispatcher_riscv(dbm_thread *thread_data, uint32_t source_index,
 			 * the dispatcher) becomes obsolete.
 			 *          +-------------------------------+
 			 *  **   |- |   B(cond) rs1, rs2, .+8       |
-			 *       |  |   JAL     block_address+12    |
+			 *       |  |   JAL     block_address+8     |
 			 *       |  |                               |
-			 *  NEW  -> |   JAL     other_target+12     |   previously PUSH x10, x11
+			 *  NEW  -> |   JAL     other_target+8      |   previously PUSH x10, x11
 			 *      ##  |                               |	(everything else unchanged)
 			 *      ##  |   B(cond) branch_target:      |
 			 *      ##  |                               |
@@ -182,10 +182,10 @@ void dispatcher_riscv(dbm_thread *thread_data, uint32_t source_index,
 			 * ** if conditional exit
 			 * ## dead code
 			 */
-			/* +12 added to block_address to jump over the pops of x10 and x11. There are
+			/* +8 added to block_address to jump over the pops of x10 and x11. There are
 			* only pushed and needed to be popped if the dispatcher was invoked before.
 			*/
-			riscv_cc_branch(thread_data, branch_addr, other_target + 12);
+			riscv_cc_branch(thread_data, branch_addr, other_target + 8);
 			thread_data->code_cache_meta[source_index].branch_cache_status |= BOTH_LINKED;
 		}
 
