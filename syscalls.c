@@ -98,11 +98,7 @@ void *dbm_start_thread_pth(void *ptr, void *mambo_sp) {
 
   // Release the lock
   // Full system memory barrier
-#if defined(__arm__) || defined(__aarch64__)
-  asm volatile("DMB SY" ::: "memory");
-#else
-  asm volatile("FENCE" ::: "memory");
-#endif
+  __sync_synchronize();
   *(thread_data->set_tid) = tid;
 
   assert(register_thread(thread_data, false) == 0);
@@ -204,7 +200,7 @@ int syscall_handler_pre(uintptr_t syscall_no, uintptr_t *args, uint16_t *next_in
   int do_syscall = 1;
   sys_clone_args *clone_args;
 #ifdef DBM_ARCH_RISCV64
-  uintptr_t *parent_stack = args - 9;
+  uintptr_t *parent_stack = args - 8;
 #else
   uintptr_t *parent_stack = args;
 #endif
@@ -243,11 +239,7 @@ int syscall_handler_pre(uintptr_t syscall_no, uintptr_t *args, uint16_t *next_in
         volatile pid_t child_tid = 0;
         dbm_create_thread(thread_data, next_inst, clone_args, &child_tid);
         while(child_tid == 0);
-#if defined(__arm__) || defined(__aarch64__)
-        asm volatile("DMB SY" ::: "memory");
-#else
-        asm volatile("FENCE" ::: "memory");
-#endif
+        __sync_synchronize();
         args[0] = child_tid;
 
         do_syscall = 0;
