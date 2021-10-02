@@ -21,7 +21,7 @@
 #define NOP_INSTRUCTION 0x00010001		// 2x C.NOP
 #define C_NOP_INSTRUCTION 0x0001		// C.NOP
 
-#define MIN_FSPACE 60 //TODO: Validate value
+#define MIN_FSPACE 68
 
 #ifdef MODULE_ONLY
 	// TODO: rather mock these functions
@@ -441,7 +441,7 @@ void riscv_branch_jump_cond(dbm_thread *thread_data, uint16_t **write_p,
 	 * 					|	LI		x11, basic_block	|	dispatcher: source_index
 	 * 					|	J		DISPATCHER			|	Long jump
 	 * 					+-------------------------------+
-	 * [Size: 72 B]
+	 * [Size: 78 B]
 	 */
 	uint16_t *cond_branch, *branch_disp;
 
@@ -956,6 +956,7 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 			riscv_save_regs(&write_p, (m_x10 | m_x11 | m_x12));
 			riscv_branch_jump(thread_data, &write_p, basic_block, target, 
 				(REPLACE_TARGET | INSERT_BRANCH));
+			// NOPs + save_regs + branch_jump <= 68 B
 			stop = true;
 			break;
 		}
@@ -1017,7 +1018,7 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 			thread_data->code_cache_meta[basic_block].branch_cache_status = 0;
 #endif
 
-			riscv_check_free_space(thread_data, &write_p, &data_p, 72, basic_block);
+			riscv_check_free_space(thread_data, &write_p, &data_p, 78, basic_block);
 			riscv_branch_jump_cond(thread_data, &write_p, basic_block, target, 
 				read_address, &cond, INST_32BIT);
 			stop = true;
@@ -1060,7 +1061,7 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 			thread_data->code_cache_meta[basic_block].branch_cache_status = 0;
 #endif
 
-			riscv_check_free_space(thread_data, &write_p, &data_p, 72, basic_block);
+			riscv_check_free_space(thread_data, &write_p, &data_p, 78, basic_block);
 			riscv_branch_jump_cond(thread_data, &write_p, basic_block, target, 
 				read_address, &cond, INST_16BIT);
 			stop = true;
@@ -1098,7 +1099,7 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 			riscv_jalr_decode_fields(read_address, &rd, &rs1, &imm12);
 
 #ifdef DBM_INLINE_HASH
-			// Check for 114 bytes (worst case inline hash lookup)
+			// Check for 104 bytes (worst case inline hash lookup)
 			riscv_check_free_space(thread_data, &write_p, &data_p, 104, basic_block);
 #endif
 
@@ -1134,7 +1135,7 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 			riscv_c_jr_decode_fields(read_address, &rs1);
 
 #ifdef DBM_INLINE_HASH
-			// Check for 114 bytes (worst case inline hash lookup)
+			// Check for 104 bytes (worst case inline hash lookup)
 			riscv_check_free_space(thread_data, &write_p, &data_p, 104, basic_block);
 #endif
 
@@ -1409,7 +1410,7 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 		} // if (!skip_inst)
 #endif
 
-		if (data_p <= write_p) {
+		if (data_p < write_p) {
 			fprintf(stderr, "%d, inst: %p, :write: %p\n", inst, data_p, write_p);
 			while(1);
 		}
