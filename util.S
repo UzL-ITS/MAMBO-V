@@ -700,3 +700,10 @@ __try_memcpy_error:
   LI a0, -1
   RET
 #endif
+
+.data
+.global gp_shadow_ptr
+gp_shadow_ptr: .dword 0
+
+.global tp_shadow_ptr
+tp_shadow_ptr: .dword 0

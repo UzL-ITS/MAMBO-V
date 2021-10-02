@@ -72,8 +72,6 @@
 uintptr_t page_size;
 dbm_global global_data;
 __thread dbm_thread *current_thread;
-uintptr_t gp_shadow_ptr;
-uintptr_t tp_shadow_ptr;
 
 void flush_code_cache(dbm_thread *thread_data) {
   thread_data->was_flushed = true;
