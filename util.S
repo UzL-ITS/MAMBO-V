@@ -373,7 +373,9 @@ sigret:
   SD a0, 8(sp)
   SD a1, 16(sp)
   JAL push_gen_regs
+  JAL push_fp_regs
   JAL signal_dispatcher
+  JAL pop_fp_regs
   JAL pop_gen_regs
   LD ra, 0(sp)
   C.ADDI sp, 8
@@ -643,7 +645,9 @@ safe_fcall_trampoline:
   C.ADDI sp, -8
   SD ra, 0(sp)
   JAL push_all_but_params
+  JAL push_fp_regs
   JALR x18          # function pointer
+  JAL pop_fp_regs
   JAL pop_all_but_params
   LD ra, 0(sp)
   C.ADDI sp, 8

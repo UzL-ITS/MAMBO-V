@@ -169,6 +169,88 @@ pop_x1_x31_full:
         ADDI    sp, sp, 232
         RET
 
+.global push_fp_regs
+push_fp_regs:
+        /*
+         * Push all floating point registers (FLEN=64) and stores fcsr to x27 (s11).
+         */
+        ADDI    sp, sp, -256
+        FSD     f0, 248(sp)
+        FSD     f1, 240(sp)
+        FSD     f2, 232(sp)
+        FSD     f3, 224(sp)
+        FSD     f4, 216(sp)
+        FSD     f5, 208(sp)
+        FSD     f6, 200(sp)
+        FSD     f7, 192(sp)
+        FSD     f8, 184(sp)
+        FSD     f9, 176(sp)
+        FSD     f10, 168(sp)
+        FSD     f11, 160(sp)
+        FSD     f12, 152(sp)
+        FSD     f13, 144(sp)
+        FSD     f14, 136(sp)
+        FSD     f15, 128(sp)
+        FSD     f16, 120(sp)
+        FSD     f17, 112(sp)
+        FSD     f18, 104(sp)
+        FSD     f19, 96(sp)
+        FSD     f20, 88(sp)
+        FSD     f21, 80(sp)
+        FSD     f22, 72(sp)
+        FSD     f23, 64(sp)
+        FSD     f24, 56(sp)
+        FSD     f25, 48(sp)
+        FSD     f26, 40(sp)
+        FSD     f27, 32(sp)
+        FSD     f28, 24(sp)
+        FSD     f29, 16(sp)
+        FSD     f30, 8(sp)
+        FSD     f31, 0(sp)
+        FRCSR   s11
+        RET
+
+.global pop_fp_regs
+pop_fp_regs:
+        /*
+         * Pop all floating point registers (FLEN=64) and restores fcsr from x27 (s11).
+         */
+        FSCSR   s11
+        FLD     f0, 248(sp)
+        FLD     f1, 240(sp)
+        FLD     f2, 232(sp)
+        FLD     f3, 224(sp)
+        FLD     f4, 216(sp)
+        FLD     f5, 208(sp)
+        FLD     f6, 200(sp)
+        FLD     f7, 192(sp)
+        FLD     f8, 184(sp)
+        FLD     f9, 176(sp)
+        FLD     f10, 168(sp)
+        FLD     f11, 160(sp)
+        FLD     f12, 152(sp)
+        FLD     f13, 144(sp)
+        FLD     f14, 136(sp)
+        FLD     f15, 128(sp)
+        FLD     f16, 120(sp)
+        FLD     f17, 112(sp)
+        FLD     f18, 104(sp)
+        FLD     f19, 96(sp)
+        FLD     f20, 88(sp)
+        FLD     f21, 80(sp)
+        FLD     f22, 72(sp)
+        FLD     f23, 64(sp)
+        FLD     f24, 56(sp)
+        FLD     f25, 48(sp)
+        FLD     f26, 40(sp)
+        FLD     f27, 32(sp)
+        FLD     f28, 24(sp)
+        FLD     f29, 16(sp)
+        FLD     f30, 8(sp)
+        FLD     f31, 0(sp)
+        ADDI    sp, sp, 256
+        RET
+
 .global dispatcher_trampoline
 dispatcher_trampoline:
         # PUSH all general purpose registers but x10, x11
@@ -178,13 +260,15 @@ dispatcher_trampoline:
         SD      ra, 0(sp)
         SD      x10, 16(sp)
         JAL     push_x1_x31
+        JAL     push_fp_regs
 
-        ADDI    x12, sp, 224            # param2: *next_addr (TCP)
+        ADDI    x12, sp, 480            # param2: *next_addr (TCP)
         LD      x13, disp_thread_data   # param3: dbm_thread *thread_data
 
         LD      x18, dispatcher_addr    # Call very far-away function
         JALR    ra, 0(x18)
 
+        JAL     pop_fp_regs
         JAL     pop_x1_x31
         LD      ra, 0(sp)
         LD      x10, 8(sp)              # param0: TCP (next_addr)
@@ -204,10 +288,11 @@ syscall_wrapper:
         LD      x12, 0(sp)              # Restore temp jump register
         SD      ra, 0(sp)
         JAL     push_x1_x31_full
+        JAL     push_fp_regs
 
         # Call pre syscall handler
         MV      x10, x17                # param0: syscall_no
-        ADDI    x11, sp, 56             # param1: *args
+        ADDI    x11, sp, 312            # param1: *args
         MV      x12, x8	                # param2: *next_inst (x8 set by scanner)
         LD      x13, disp_thread_data   # param3: dbm_thread *thread_data
         
@@ -217,20 +302,20 @@ syscall_wrapper:
         BEQZ    x10, s_w_r
 
         # Load syscall parameter registers
-        LD      x10, 56(sp)
-        LD      x11, 64(sp)
-        LD      x12, 72(sp)
-        LD      x13, 80(sp)
-        LD      x14, 88(sp)
-        LD      x15, 96(sp)
-        LD      x16, 104(sp)
+        LD      x10, 312(sp)
+        LD      x11, 320(sp)
+        LD      x12, 328(sp)
+        LD      x13, 336(sp)
+        LD      x14, 344(sp)
+        LD      x15, 352(sp)
+        LD      x16, 360(sp)
         # Also load syscall register because it may have changed (debug output)
-        LD      x17, 112(sp)
+        LD      x17, 368(sp)
 
         # Balance the stack on rt_sigreturn, which doesn't return here anymore
         LI      x28, 139
         BNE     x17, x28, svc
-        ADDI    sp, sp, (16 + 240)      # Additional 16 because scanner pushed x1 and x8
+        ADDI    sp, sp, (16 + 240 + 256)      # Additional 16 because scanner pushed x1 and x8
 
 svc:
         # Syscall
@@ -238,7 +323,7 @@ svc:
 
 syscall_wrapper_svc:
         # Call post syscall handler
-        ADDI    x11, sp, 56             # param1: *args
+        ADDI    x11, sp, 312            # param1: *args
         SD      x10, 0(x11)
         MV      x10, x17                # param0: syscall_no
         MV      x12, x8	                # param2: *next_inst (x8 set by scanner)
@@ -248,6 +333,7 @@ syscall_wrapper_svc:
         JALR    ra, 0(x18)
 
 s_w_r:
+        JAL     pop_fp_regs
         JAL     pop_x1_x31_full
         LD      x1, 16(sp)              # Restore x1 pushed by scanner
         LD      x8, 8(sp)               # Restore x8 pushed by scanner
@@ -281,6 +367,7 @@ deliver_signals_trampoline:
         MV      x11, sp	                # param1: self_signal *
         C.ADDI  x11, 8                  # 0(sp) is saved ra, self_signal starts at 8(sp)
         JAL     push_x1_x31
+        JAL     push_fp_regs
 
         LI      x12, 0xd6db             # param2: sigmask TODO: Why should SCP be 0xd6db?
         BEQ     x10, x12, .             # loop if SPC (target) == 0xd6db
@@ -288,6 +375,7 @@ deliver_signals_trampoline:
         LD      x18, deliver_signals_addr       # Call very far-away function
         JALR    ra, 0(x18)
 
+        JAL     pop_fp_regs
         JAL     pop_x1_x31
         LD      ra, 0(sp)
         C.ADDI  sp, 8
