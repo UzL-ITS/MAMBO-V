@@ -261,20 +261,40 @@ mambo_branch_type mambo_get_branch_type(mambo_context *ctx) {
 #endif // __aarch64__
 #ifdef DBM_ARCH_RISCV64
   switch (ctx->code.inst) {
-    case RISCV_JAL:
+    case RISCV_JAL: {
+      unsigned int rd, imm;
+      riscv_jal_decode_fields(ctx->code.read_address, &rd, &imm);
+      type = BRANCH_DIRECT;
+      // It's a routine call if linked to ra
+      if (rd == ra)
+        type |= BRANCH_CALL;
+      break;
+    }
     case RISCV_C_JAL:
       type = BRANCH_DIRECT | BRANCH_CALL;
       break;
-    case RISCV_JALR:
+    case RISCV_JALR: {
+      unsigned int rd, rs1, imm;
+      riscv_jalr_decode_fields(ctx->code.read_address, &rd, &rs1, &imm);
+      type = BRANCH_INDIRECT;
+      if (rs1 == ra && rd == x0 && imm == 0)
+        type |= BRANCH_RETURN;
+      break;
+    }
     case RISCV_C_JALR:
-      type = BRANCH_INDIRECT | BRANCH_RETURN;
+      type = BRANCH_INDIRECT;
       break;
     case RISCV_C_J:
       type = BRANCH_DIRECT;
       break;
-    case RISCV_C_JR:
+    case RISCV_C_JR: {
+      unsigned int rs1;
+      riscv_c_jr_decode_fields(ctx->code.read_address, &rs1);
       type = BRANCH_INDIRECT;
+      if (rs1 == ra)
+        type |= BRANCH_RETURN;
       break;
+    }
     case RISCV_BEQ:
     case RISCV_BNE:
     case RISCV_BLT:
