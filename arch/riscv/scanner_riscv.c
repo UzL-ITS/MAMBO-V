@@ -1183,6 +1183,57 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 			read_address--;
 			break;
 
+		case RISCV_LR_W:
+		case RISCV_LR_D: {
+			/*
+			 * Original instruction
+			 *          +-------------------------------+
+			 *          |   LR.{W,D} x, (y)             |
+			 *          +-------------------------------+
+			 * 
+			 * Translate to
+			 *          +-------------------------------+
+			 *          |   LR.{W,D} x, (y)             |
+			 *          |   C.MV    x31, x              |   Save original x in x31 for
+			 *          +-------------------------------+       comparison when SC
+			 * // TODO: Don't hope that x31 is unused
+			 */
+			unsigned int aq, rl, x, y;
+
+			riscv_copy32(&write_p, read_address);
+			riscv_lr_d_decode_fields(read_address, &aq, &rl, &x, &y);
+			riscv_c_mv(&write_p, x31, x);
+			write_p++;
+			break;
+		}
+		case RISCV_SC_W:
+		case RISCV_SC_D: {
+			/*
+			 * Original instruction
+			 *          +-------------------------------+
+			 *          |   SC.{W,D} x, y, (z)          |
+			 *          +-------------------------------+
+			 * 
+			 * Translate to
+			 *          +-------------------------------+
+			 *          |   LR.{W,D} x, (z)n            |
+			 *          |   BNE     x, x31, .+8         |   Ignore SC as if it fails.
+			 *          |   SC.{W,D} x, y, (z)          |       Branch to LR is expected
+			 *          +-------------------------------+       to follow.
+			 * // TODO: Don't hope that x31 is unused
+			 */
+			unsigned int aq, rl, x, z, y;
+			riscv_instruction follow_inst = riscv_decode(read_address + 2);
+
+			riscv_sc_d_decode_fields(read_address, &aq, &rl, &x, &y, &z);
+			riscv_lr_d(&write_p, 1, 1, x, z);
+			write_p += 2;
+			riscv_bne(&write_p, x, x31, 0, 8);
+			write_p += 2;
+			riscv_copy32(&write_p, read_address);
+			break;
+		}
+
 		// All other instructions can by copied unmodified
 		case RISCV_LUI:
 		case RISCV_LB:
@@ -1246,8 +1297,6 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 		case RISCV_DIVUW:
 		case RISCV_REMW:
 		case RISCV_REMUW:
-		case RISCV_LR_W:
-		case RISCV_SC_W:
 		case RISCV_AMOSWAP_W:
 		case RISCV_AMOADD_W:
 		case RISCV_AMOXOR_W:
@@ -1257,8 +1306,6 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 		case RISCV_AMOMAX_W:
 		case RISCV_AMOMINU_W:
 		case RISCV_AMOMAXU_W:
-		case RISCV_LR_D:
-		case RISCV_SC_D:
 		case RISCV_AMOSWAP_D:
 		case RISCV_AMOADD_D:
 		case RISCV_AMOXOR_D:
