@@ -387,6 +387,26 @@ enum reg_alt {
 #define m_tp    (1 << tp)
 #define m_fp    (1 << fp)
 
+/**
+ * Register mapping for architecture indipendent register usage. These can be used in
+ * a plugin when scratch registers are needed.
+ */
+enum reg_portable {
+  reg0 = x10,   /**< a0 like AArch64 x0; Volatile parameter register */
+  reg1 = x11,   /**< a1 like AArch64 x1; Volatile parameter register */
+  reg2 = x12,   /**< a2 like AArch64 x2; Volatile parameter register */
+  reg3 = x13,   /**< a3 like AArch64 x3; Volatile parameter register */
+  reg4 = x14,   /**< a4 like AArch64 x4; Volatile parameter register */
+  reg5 = x15,   /**< a5 like AArch64 x5; Volatile parameter register */
+  reg6 = x16,   /**< a6 like AArch64 x6; Volatile parameter register */
+  reg7 = x17,   /**< a7 like AArch64 x7; Volatile parameter register */
+  reg8 = x5,    /**< t0 like AArch64 x8; Volatile temporary register */
+  reg9 = x6,    /**< t1 like AArch64 x9; Volatile temporary register */
+  reg10 = x7,   /**< t2 like AArch64 x10; Volatile temporary register */
+  reg11 = x28,  /**< t3 like AArch64 x11; Volatile temporary register */
+  reg12 = x29   /**< t4 like AArch64 x12; Volatile temporary register */
+};
+
 #define invert_cond(cond) cond ^ 1
 
 /**

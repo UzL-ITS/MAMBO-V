@@ -273,7 +273,7 @@ static inline int emit_riscv_add_sub_shift(mambo_context *ctx, int rd, int rn, i
   unsigned int shift_type, unsigned int shift)
 {
   bool add = (rm >= 0);
-  rm = abs(rm)
+  rm = abs(rm);
   if (shift < 0 || shift > 31 || shift_type > ASR) return -1;
   if (shift > 0) {
     switch(shift_type) {
@@ -358,7 +358,7 @@ void emit_set_reg(mambo_context *ctx, enum reg reg, uintptr_t value) {
 #elif __aarch64__
   a64_copy_to_reg_64bits((uint32_t **)&ctx->code.write_p, reg, value);
 #elif DBM_ARCH_RISCV64
-  if (*value < 0x10000000000000000)
+  if (value <= UINT32_MAX)
     // Use 32 bit variant if possible to save memory and CPU time
     riscv_copy_to_reg_32bits((uint16_t **)&ctx->code.write_p, reg, value);
   else
@@ -412,14 +412,19 @@ int __emit_branch_cond(inst_set inst_type, void *write, uintptr_t target, mambo_
 #ifdef DBM_ARCH_RISCV64
   if (cond.cond == AL)
     cond.r1 = link;
-  return riscv_b_cond_helper(&write, target, &cond);
+  return riscv_b_cond_helper((uint16_t **)&write, target, &cond);
 #endif
   return 0;
 }
 
 void emit_fcall(mambo_context *ctx, void *function_ptr) {
   // First try an immediate call, and if that is out of range then generate an indirect call
+#ifdef DBM_ARCH_RISCV64
+  mambo_cond cond = {0, 0, AL};
+  int ret = __emit_branch_cond(ctx->code.inst_type, ctx->code.write_p, (uintptr_t)function_ptr, cond, true);
+#else
   int ret = __emit_branch_cond(ctx->code.inst_type, ctx->code.write_p, (uintptr_t)function_ptr, AL, true);
+#endif
   if (ret == 0) return;
 
 #ifdef DBM_ARCH_RISCV64
@@ -437,7 +442,7 @@ void emit_fcall(mambo_context *ctx, void *function_ptr) {
 #elif __aarch64__
   emit_a64_BLR(ctx, lr);
 #elif DBM_ARCH_RISCV64
-  emit_riscv_jalr(ra, ra, 0);
+  emit_riscv_jalr(ctx, ra, ra, 0);
 #endif
 }
 
@@ -525,8 +530,10 @@ void emit_mov(mambo_context *ctx, enum reg rd, enum reg rn) {
            assert((shift) == 0 || (shift) == 12); \
            emit_a64_ADD_SUB_immed(ctx, 1, 1, 0, (shift == 12), (offset), (rn), (rd));
 #endif
-#define SHIFTED_ADD_SUB_I_MASK ((1 << SHIFTED_ADD_SUB_I_BITS) - 1)
-#define SHIFTED_ADD_SUB_MAX (SHIFTED_ADD_SUB_I_MASK | (SHIFTED_ADD_SUB_I_MASK << SHIFTED_ADD_SUB_I_BITS))
+#if defined(__arm__) || defined(__aarch64__)
+  #define SHIFTED_ADD_SUB_I_MASK ((1 << SHIFTED_ADD_SUB_I_BITS) - 1)
+  #define SHIFTED_ADD_SUB_MAX (SHIFTED_ADD_SUB_I_MASK | (SHIFTED_ADD_SUB_I_MASK << SHIFTED_ADD_SUB_I_BITS))
+#endif
 
 int emit_add_sub_i(mambo_context *ctx, int rd, int rn, int offset) {
   if (offset == 0) {
@@ -549,11 +556,7 @@ int emit_add_sub_i(mambo_context *ctx, int rd, int rn, int offset) {
       return 0;
     }
 #endif
-#ifdef DBM_ARCH_RISCV64
-    if ((unsigned int)offset >= (1 << 12)) return -1;
-    emit_riscv_addi(ctx, rd, rn, offset);
-    return 0;
-#endif
+#if defined(__arm__) || defined(__aarch64__)
     if (offset < -SHIFTED_ADD_SUB_MAX || offset > SHIFTED_ADD_SUB_MAX) return -1;
 
     if (offset < 0) {
@@ -574,6 +577,12 @@ int emit_add_sub_i(mambo_context *ctx, int rd, int rn, int offset) {
         _emit_add_shift_imm(rd, rn, offset >> SHIFTED_ADD_SUB_I_BITS, SHIFTED_ADD_SUB_I_BITS);
       }
     }
+#endif
+#ifdef DBM_ARCH_RISCV64
+    if ((unsigned int)offset >= (1 << 12)) 
+      return -1;
+    emit_riscv_addi(ctx, rd, rn, offset);
+#endif
   } // offset != 0
   return 0;
 }
@@ -621,9 +630,9 @@ int __emit_branch_cbz_cbnz(mambo_context *ctx, void *write_p, void *target, enum
   ret = a64_cbz_cbnz_helper((uint32_t *)write_p, !is_cbz, (uint64_t)target, 1, reg);
 #elif DBM_ARCH_RISCV64
   if (is_cbz)
-    ret = riscv_bez_helper((uint16_t **)&write_p, reg, target);
+    ret = riscv_bez_helper((uint16_t **)&write_p, reg, (uint64_t)target);
   else
-    ret = riscv_bnez_helper((uint16_t **)&write_p, reg, target);
+    ret = riscv_bnez_helper((uint16_t **)&write_p, reg, (uint64_t)target);
 #elif __arm__
   if (mambo_get_inst_type(ctx) == THUMB_INST) {
     ret = thumb_cbz_cbnz_helper((uint16_t *)write_p, (uint32_t)target, reg, is_cbz);
@@ -693,8 +702,8 @@ int emit_local_branch_cond(mambo_context *ctx, mambo_branch *br, mambo_cond cond
 
 int emit_local_branch(mambo_context *ctx, mambo_branch *br) {
 #ifdef DBM_ARCH_RISCV64
-  mambo_cond cond = {AL, 0, 0}
-  return __emit_local_branch(ctx, br, cond, false)
+  mambo_cond cond = {AL, 0, 0};
+  return __emit_local_branch(ctx, br, cond, false);
 #else
   return __emit_local_branch(ctx, br, AL, false);
 #endif
@@ -702,8 +711,8 @@ int emit_local_branch(mambo_context *ctx, mambo_branch *br) {
 
 int emit_local_fcall(mambo_context *ctx, mambo_branch *br) {
 #ifdef DBM_ARCH_RISCV64
-  mambo_cond cond = {AL, 0, 0}
-  return __emit_local_branch(ctx, br, cond, true)
+  mambo_cond cond = {AL, 0, 0};
+  return __emit_local_branch(ctx, br, cond, true);
 #else
   return __emit_local_branch(ctx, br, AL, true);
 #endif
@@ -790,7 +799,7 @@ void emit_counter64_incr(mambo_context *ctx, void *counter, unsigned incr) {
   emit_riscv_c_ld(ctx, x11, x10, 0, 0);
   emit_riscv_addi(ctx, x11, x11, incr);
   emit_riscv_c_sd(ctx, x11, x10, 0, 0);
-  emit_riscv_push(ctx, (1 << x10) | (1 << x11));
+  emit_riscv_pop(ctx, (1 << x10) | (1 << x11));
 #endif
 }
 
@@ -800,7 +809,8 @@ int emit_indirect_branch_by_spc(mambo_context *ctx, enum reg reg) {
   a64_inline_hash_lookup(current_thread, 0, (uint32_t **)&ctx->code.write_p, ctx->code.read_address, reg, false, false);
 #elif DBM_ARCH_RISCV64
   // Uses fragment id 0 to prevent the dispatcher from attempting linking on an IHL miss
-  riscv_inline_hash_lookup(current_thread, 0, (uint32_t **)&ctx->code.write_p, ctx->code.read_address, reg, 0, false);
+  riscv_inline_hash_lookup(current_thread, 0, (uint16_t **)&ctx->code.write_p, 
+    ctx->code.read_address, reg, 0, x0, false, mambo_get_inst_len(ctx));
 #elif __arm__
   switch(ctx->code.inst_type) {
     case ARM_INST:
