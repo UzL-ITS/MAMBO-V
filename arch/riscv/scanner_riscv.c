@@ -1183,26 +1183,48 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 			read_address--;
 			break;
 
-		case RISCV_LR_W:
-		case RISCV_LR_D: {
+		case RISCV_LR_W: {
 			/*
 			 * Original instruction
 			 *          +-------------------------------+
-			 *          |   LR.{W,D} x, (y)             |
+			 *          |   LR.W    x, (y)              |
 			 *          +-------------------------------+
 			 * 
 			 * Translate to
 			 *          +-------------------------------+
-			 *          |   LR.{W,D} x, (y)             |
+			 *          |   LW      x, 0(y)             |
 			 *          |   C.MV    x31, x              |   Save original x in x31 for
 			 *          +-------------------------------+       comparison when SC
-			 * // TODO: Don't hope that x31 is unused
-			 * // NOTE: It's pretty slow
+			 * // TODO: Don't just hope that x31 is unused!
 			 */
 			unsigned int aq, rl, x, y;
 
-			riscv_copy32(&write_p, read_address);
 			riscv_lr_d_decode_fields(read_address, &aq, &rl, &x, &y);
+			riscv_lw(&write_p, x, y, 0);
+			write_p += 2;
+			riscv_c_mv(&write_p, x31, x);
+			write_p++;
+			break;
+		}
+		case RISCV_LR_D: {
+			/*
+			 * Original instruction
+			 *          +-------------------------------+
+			 *          |   LR.D    x, (y)              |
+			 *          +-------------------------------+
+			 * 
+			 * Translate to
+			 *          +-------------------------------+
+			 *          |   LD      x, 0(y)             |
+			 *          |   C.MV    x31, x              |   Save original x in x31 for
+			 *          +-------------------------------+       comparison when SC
+			 * // TODO: Don't just hope that x31 is unused!
+			 */
+			unsigned int aq, rl, x, y;
+
+			riscv_lr_d_decode_fields(read_address, &aq, &rl, &x, &y);
+			riscv_lw(&write_p, x, y, 0);
+			write_p += 2;
 			riscv_c_mv(&write_p, x31, x);
 			write_p++;
 			break;
@@ -1220,8 +1242,7 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 			 *          |   BNE     x, x31, .+8         |   Ignore SC as if it fails.
 			 *          |   SC.W    x, y, (z)           |       Branch to LR is expected
 			 *          +-------------------------------+       to follow.
-			 * // TODO: Don't hope that x31 is unused
-			 * // NOTE: It's pretty slow
+			 * // TODO: Don't just hope that x31 is unused!
 			 */
 			unsigned int aq, rl, x, z, y;
 			riscv_instruction follow_inst = riscv_decode(read_address + 2);
@@ -1247,8 +1268,7 @@ size_t scan_riscv(dbm_thread *thread_data, uint16_t *read_address, int basic_blo
 			 *          |   BNE     x, x31, .+8         |   Ignore SC as if it fails.
 			 *          |   SC.D    x, y, (z)           |       Branch to LR is expected
 			 *          +-------------------------------+       to follow.
-			 * // TODO: Don't hope that x31 is unused
-			 * // NOTE: It's pretty slow
+			 * // TODO: Don't just hope that x31 is unused!
 			 */
 			unsigned int aq, rl, x, z, y;
 			riscv_instruction follow_inst = riscv_decode(read_address + 2);
