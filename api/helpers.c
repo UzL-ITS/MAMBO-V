@@ -579,7 +579,7 @@ int emit_add_sub_i(mambo_context *ctx, int rd, int rn, int offset) {
     }
 #endif
 #ifdef DBM_ARCH_RISCV64
-    if ((unsigned int)offset >= (1 << 12)) 
+    if (offset >= 0x1000 || offset < -0x1000) 
       return -1;
     emit_riscv_addi(ctx, rd, rn, offset);
 #endif

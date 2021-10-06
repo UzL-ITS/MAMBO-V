@@ -862,51 +862,65 @@ int _riscv_calc_ld_st_addr(mambo_context *ctx, enum reg reg)
   case RISCV_LWU:
   case RISCV_LD: {
     unsigned int rd, rs1, imm;
+    int offset;
     riscv_ld_decode_fields(ctx->code.read_address, &rd, &rs1, &imm);
+    offset = sign_extend32(12, imm);
     _generate_addr(ctx, reg, rs1, imm);
     return 0;
   }
   case RISCV_C_LW:
   case RISCV_C_SW: {
-    unsigned int rd, rs1, imm3_5, imm2_6, offset;
+    unsigned int rd, rs1, imm3_5, imm2_6;
+    int offset;
     riscv_c_lw_decode_fields(ctx->code.read_address, &rd, &rs1, &imm3_5, &imm2_6);
     offset = (imm3_5 << 3) | ((imm2_6 & 1) << 6) | ((imm2_6 & 2) << 1);
+    offset = sign_extend32(7, offset);
     _generate_addr(ctx, reg, rs1 + 8, offset);
     return 0;
   }
   case RISCV_C_LD:
   case RISCV_C_SD: {
-    unsigned int rd, rs1, imm3_5, imm6_7, offset;
+    unsigned int rd, rs1, imm3_5, imm6_7;
+    int offset;
     riscv_c_ld_decode_fields(ctx->code.read_address, &rd, &rs1, &imm3_5, &imm6_7);
     offset = (imm3_5 << 3) | (imm6_7 << 6);
+    offset = sign_extend32(8, offset);
     _generate_addr(ctx, reg, rs1 + 8, offset);
     return 0;
   }
   case RISCV_C_LWSP: {
-    unsigned int rd, imm5, imm2_4_6_7, offset;
+    unsigned int rd, imm5, imm2_4_6_7;
+    int offset;
     riscv_c_lwsp_decode_fields(ctx->code.read_address, &rd, &imm5, &imm2_4_6_7);
     offset = (imm5 << 5) | (imm2_4_6_7 & 0x1C) | ((imm2_4_6_7 & 3) << 6);
+    offset = sign_extend32(8, offset);
     _generate_addr(ctx, reg, sp, offset);
     return 0;
   }
   case RISCV_C_LDSP: {
-    unsigned int rd, imm5, imm3_4_6_8, offset;
+    unsigned int rd, imm5, imm3_4_6_8;
+    int offset;
     riscv_c_ldsp_decode_fields(ctx->code.read_address, &rd, &imm5, &imm3_4_6_8);
     offset = (imm5 << 5) | (imm3_4_6_8 & 0x18) | ((imm3_4_6_8 & 7) << 6);
+    offset = sign_extend32(9, offset);
     _generate_addr(ctx, reg, sp, offset);
     return 0;
   }
   case RISCV_C_SWSP: {
-    unsigned int rs2, imm2_5_6_7, offset;
+    unsigned int rs2, imm2_5_6_7;
+    int offset;
     riscv_c_swsp_decode_fields(ctx->code.read_address, &rs2, &imm2_5_6_7);
     offset = (imm2_5_6_7 & 0x3C) | ((imm2_5_6_7 & 3) << 6);
+    offset = sign_extend32(8, offset);
     _generate_addr(ctx, reg, sp, offset);
     return 0;
   }
   case RISCV_C_SDSP: {
-    unsigned int rs2, imm3_5_6_8, offset;
-    riscv_c_swsp_decode_fields(ctx->code.read_address, &rs2, &imm3_5_6_8);
+    unsigned int rs2, imm3_5_6_8;
+    int offset;
+    riscv_c_sdsp_decode_fields(ctx->code.read_address, &rs2, &imm3_5_6_8);
     offset = (imm3_5_6_8 & 0x38) | ((imm3_5_6_8 & 7) << 6);
+    offset = sign_extend32(9, offset);
     _generate_addr(ctx, reg, sp, offset);
     return 0;
   }
@@ -914,9 +928,11 @@ int _riscv_calc_ld_st_addr(mambo_context *ctx, enum reg reg)
   case RISCV_SH:
   case RISCV_SW:
   case RISCV_SD: {
-    unsigned int rs1, rs2, imm0_4, imm5_11, offset;
-    riscv_c_sd_decode_fields(ctx->code.read_address, &rs2, &rs1, &imm5_11, &imm0_4);
+    unsigned int rs1, rs2, imm0_4, imm5_11;
+    int offset;
+    riscv_sd_decode_fields(ctx->code.read_address, &rs2, &rs1, &imm5_11, &imm0_4);
     offset = (imm5_11 << 5) | imm0_4;
+    offset = sign_extend32(12, offset);
     _generate_addr(ctx, reg, rs1, offset);
     return 0;
   }
