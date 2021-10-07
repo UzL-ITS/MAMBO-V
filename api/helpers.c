@@ -250,11 +250,13 @@ int emit_a64_add_sub_ext(mambo_context *ctx, int rd, int rn, int rm, int ext_opt
 #ifdef DBM_ARCH_RISCV64
 void emit_riscv_push(mambo_context *ctx, uint32_t regs)
 {
+  ctx->code.plugin_pushed_reg_count += count_bits(regs);
   riscv_save_regs((uint16_t **)&ctx->code.write_p, regs);
 }
 
 void emit_riscv_pop(mambo_context *ctx, uint32_t regs)
 {
+  ctx->code.plugin_pushed_reg_count -= count_bits(regs);
   riscv_restore_regs((uint16_t **)&ctx->code.write_p, regs);
 }
 
