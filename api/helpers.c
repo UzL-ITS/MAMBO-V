@@ -619,7 +619,7 @@ int emit_branch_cond(mambo_context *ctx, void *target, mambo_cond cond) {
 
 int emit_branch(mambo_context *ctx, void *target) {
 #ifdef DBM_ARCH_RISCV64
-  mambo_cond cond = {AL, 0, 0};
+  mambo_cond cond = {0, 0, AL};
   return emit_branch_cond(ctx, target, cond);
 #else
   return emit_branch_cond(ctx, target, AL);
@@ -704,7 +704,7 @@ int emit_local_branch_cond(mambo_context *ctx, mambo_branch *br, mambo_cond cond
 
 int emit_local_branch(mambo_context *ctx, mambo_branch *br) {
 #ifdef DBM_ARCH_RISCV64
-  mambo_cond cond = {AL, 0, 0};
+  mambo_cond cond = {0, 0, AL};
   return __emit_local_branch(ctx, br, cond, false);
 #else
   return __emit_local_branch(ctx, br, AL, false);
@@ -713,7 +713,7 @@ int emit_local_branch(mambo_context *ctx, mambo_branch *br) {
 
 int emit_local_fcall(mambo_context *ctx, mambo_branch *br) {
 #ifdef DBM_ARCH_RISCV64
-  mambo_cond cond = {AL, 0, 0};
+  mambo_cond cond = {0, 0, AL};
   return __emit_local_branch(ctx, br, cond, true);
 #else
   return __emit_local_branch(ctx, br, AL, true);
