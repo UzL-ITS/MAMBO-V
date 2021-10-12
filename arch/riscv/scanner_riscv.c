@@ -108,7 +108,7 @@ int riscv_branch_imm_helper(uint16_t **write_p, uint64_t target, bool link)
 	if((offset & 1) != 0)
 		return -1;
 	// Write compressed instruction if possible
-	if (riscv_check_cj_type(offset)) {
+	if (riscv_check_cj_type(offset) && !link) {
 		// Format offset to: offset[11|4|9:8|10|6|7|3:1|5]
 		unsigned int imm = ((offset & (1 << 11)) >> 1)
 							| ((offset & (1 << 4)) << 5)
@@ -118,12 +118,8 @@ int riscv_branch_imm_helper(uint16_t **write_p, uint64_t target, bool link)
 							| ((offset & (1 << 7)) >> 3)
 							| (offset & (7 << 1))
 							| ((offset & (1 << 5)) >> 5);
-		if (link)
-			// C.JAL offset
-			riscv_c_jal(write_p, imm);
-		else
-			// C.J offset
-			riscv_c_j(write_p, imm);
+		// C.J offset
+		riscv_c_j(write_p, imm);
 		(*write_p)++;
 	}
 	// Check if target in range (+-1 MiB)
