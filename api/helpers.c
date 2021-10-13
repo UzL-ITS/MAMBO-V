@@ -668,6 +668,12 @@ int emit_branch_cbnz(mambo_context *ctx, void *target, enum reg reg) {
 int __mambo_reserve(mambo_context *ctx, mambo_branch *br, size_t incr) {
   if (ctx->code.write_p) {
     br->loc = ctx->code.write_p;
+#ifdef DBM_ARCH_RISCV64
+    // Fill space with NOPs in case it won't be fully overwritten
+    for (size_t i = 0; i + 1 < incr; i += 2) {
+      *(uint16_t *)(ctx->code.write_p + i) = 0x0001;  // C.NOP
+    }
+#endif
     ctx->code.write_p += incr;
     return 0;
   }
