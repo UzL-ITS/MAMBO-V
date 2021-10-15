@@ -499,7 +499,7 @@ int mambo_reserve_cc_space(mambo_context *ctx, size_t size) {
   a64_check_free_space(ctx->thread_data, (uint32_t **)&ctx->code.write_p, (uint32_t **)&ctx->code.data_p,
                        size, mambo_get_fragment_id(ctx));
 #elif DBM_ARCH_RISCV64
-  #include "scanner_common.h"
+  #include "../scanner_common.h"
   riscv_check_free_space(ctx->thread_data, (uint16_t **)&ctx->code.write_p, 
     (uint16_t **)&ctx->code.data_p, size, mambo_get_fragment_id(ctx));
 #endif
