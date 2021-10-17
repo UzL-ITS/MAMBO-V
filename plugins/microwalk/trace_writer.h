@@ -173,11 +173,8 @@ public:
     // Creates a new Branch entry.
     static TraceEntry* InsertBranchEntry(TraceEntry* nextEntry, uintptr_t sourceAddress, uintptr_t targetAddress, uint8_t taken, uint8_t type);
 
-    // Creates a new "ret" Branch entry.
-    // TODO: Change to use MAMBO context
-    /*
-    static TraceEntry* InsertRetBranchEntry(TraceEntry* nextEntry, uintptr_t sourceAddress, mambo_context* contextAfterRet);
-    */
+    // Creates a new Branch entry for Jumps.
+    static TraceEntry* InsertJumpEntry(TraceEntry* nextEntry, uintptr_t sourceAddress, uintptr_t targetAddress, uint8_t type);
 
     // Creates a new StackPointerInfo entry.
     static TraceEntry* InsertStackPointerInfoEntry(TraceEntry* nextEntry, uintptr_t stackPointerMin, uintptr_t stackPointerMax);

@@ -223,16 +223,15 @@ TraceEntry* TraceWriter::InsertBranchEntry(TraceEntry* nextEntry, uintptr_t sour
     return ++nextEntry;
 }
 
-// TODO: Change to use MAMBO context
-/*
-TraceEntry* TraceWriter::InsertRetBranchEntry(TraceEntry* nextEntry, uintptr_t sourceAddress, mambo_context* contextAfterRet)
+TraceEntry* TraceWriter::InsertJumpEntry(TraceEntry* nextEntry, uintptr_t sourceAddress, uintptr_t targetAddress, uint8_t type)
 {
     // Create entry
-    uintptr_t retAddress;
-    PIN_GetContextRegval(contextAfterRet, REG_INST_PTR, reinterpret_cast<uint8_t*>(&retAddress));
-    return InsertBranchEntry(nextEntry, sourceAddress, retAddress, true, static_cast<uint8_t>(TraceEntryFlags::BranchTypeReturn));
+    nextEntry->Type = TraceEntryTypes::Branch;
+    nextEntry->Param1 = sourceAddress;
+    nextEntry->Param2 = targetAddress;
+    nextEntry->Flag = static_cast<uint8_t>(type) | static_cast<uint8_t>(TraceEntryFlags::BranchTaken);
+    return ++nextEntry;
 }
-*/
 
 TraceEntry* TraceWriter::InsertStackPointerInfoEntry(TraceEntry* nextEntry, uintptr_t stackPointerMin, uintptr_t stackPointerMax)
 {

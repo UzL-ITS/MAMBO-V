@@ -85,13 +85,10 @@ extern "C" {
 		return TraceWriter::InsertBranchEntry(nextEntry, sourceAddress, targetAddress, taken, type);
 	}
 
-	// TODO: Change to use MAMBO context
-	/*
-	TraceEntry* TraceWriter_InsertRetBranchEntry(TraceEntry* nextEntry, uintptr_t sourceAddress, mambo_context* contextAfterRet)
+	TraceEntry* TraceWriter_InsertJumpEntry(TraceEntry* nextEntry, uintptr_t sourceAddress, uintptr_t targetAddress, uint8_t type)
 	{
-		return TraceWriter::InsertRetBranchEntry(nextEntry, sourceAddress, contextAfterRet);
+		return TraceWriter::InsertJumpEntry(nextEntry, sourceAddress, targetAddress, type);
 	}
-	*/
 
 	TraceEntry* TraceWriter_InsertStackPointerInfoEntry(TraceEntry* nextEntry, uintptr_t stackPointerMin, uintptr_t stackPointerMax)
 	{

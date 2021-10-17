@@ -65,11 +65,8 @@ TraceEntry* TraceWriter_InsertStackPointerModificationEntry(TraceEntry* nextEntr
 // Creates a new Branch entry.
 TraceEntry* TraceWriter_InsertBranchEntry(TraceEntry* nextEntry, uintptr_t sourceAddress, uintptr_t targetAddress, uint8_t taken, uint8_t type);
 
-// Creates a new "ret" Branch entry.
-// TODO: Change to use MAMBO context
-/*
-TraceEntry* TraceWriter_InsertRetBranchEntry(TraceEntry* nextEntry, uintptr_t sourceAddress, mambo_context* contextAfterRet);
-*/
+// Creates a new Branch entry for Jumps.
+TraceEntry* TraceWriter_InsertJumpEntry(TraceEntry* nextEntry, uintptr_t sourceAddress, uintptr_t targetAddress, uint8_t type);
 
 // Creates a new StackPointerInfo entry.
 TraceEntry* TraceWriter_InsertStackPointerInfoEntry(TraceEntry* nextEntry, uintptr_t stackPointerMin, uintptr_t stackPointerMax);
