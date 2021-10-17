@@ -77,14 +77,15 @@ DEFS += $(ARCH_OPTS)
 FLAGS+=-g
 
 ASFLAGS+=$(FLAGS)
-CFLAGS+=$(FLAGS) -O2 -std=gnu99
-CXXFLAGS+=$(FLAGS) -O2
+CFLAGS+=$(FLAGS) -O2 -std=gnu99 -MMD -MP
+CXXFLAGS+=$(FLAGS) -O2 -MMD -MP
 
 SOURCES += $(PLUGINS)
 OBJECTS += $(patsubst %.s,$(BUILD_DIR)/%.s.o,$(filter %.s,$(SOURCES))) \
 	$(patsubst %.S,$(BUILD_DIR)/%.S.o,$(filter %.S,$(SOURCES))) \
 	$(patsubst %.c,$(BUILD_DIR)/%.c.o,$(filter %.c,$(SOURCES))) \
 	$(patsubst %.cpp,$(BUILD_DIR)/%.cpp.o,$(filter %.cpp,$(SOURCES)))
+DEPS := $(OBJECTS:.o=.d)
 
 .PHONY: pie clean cleanall print_arch
 
@@ -137,5 +138,7 @@ api/emit_%.c: pie/pie-%-encoder.c api/generate_emit_wrapper.rb
 
 api/emit_%.h: pie/pie-%-encoder.c api/generate_emit_wrapper.rb
 	ruby api/generate_emit_wrapper.rb $< header > $@
+
+-include $(DEPS)
 
 MKDIR_P ?= mkdir -p
