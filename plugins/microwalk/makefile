@@ -11,8 +11,7 @@ CXX=$(CROSS_PREFIX)g++
 
 all: wrapper dbm
 
-dbm: $(DBM_DIR)/dbm
-$(DBM_DIR)/dbm:
+dbm:
 	$(MAKE) -C $(DBM_DIR) all
 
 dbm_clean:
