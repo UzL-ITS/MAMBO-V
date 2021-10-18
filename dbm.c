@@ -255,6 +255,18 @@ uintptr_t scan(dbm_thread *thread_data, uint16_t *address, int basic_block) {
 #else
   cond = -1;
 #endif
+  /*
+   * FIXME: The pointer `address` does still point to the beginning of the basic block
+   * in the original scanned code. The `scan_[ARCH]` function do increment them
+   * internally as they walk through but do not change `address` here. Therefore
+   * `ctx->code.read_address` in the context structure is NOT the pointer corresponding
+   * to `write_p` at post basic block and post fragment callbacks.
+   * 
+   * To change this behavior, the `scan_[ARCH]` functions should take a pointer
+   * pointer (`**address`), so they can change the value of `address` here. This would
+   * only have an effect on the following two callback deliver functions.
+   * Or move the delivery to the architecture specific scanner.
+   */
   mambo_deliver_callbacks_code(POST_BB_C, thread_data, mambo_bb, basic_block, inst_type,
                                -1, cond, address, (void *)(block_address & (~THUMB)), NULL, &stop);
   mambo_deliver_callbacks_code(POST_FRAGMENT_C, thread_data, mambo_bb, basic_block, inst_type,
