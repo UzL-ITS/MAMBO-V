@@ -110,6 +110,27 @@ pop_gen_regs:
   LD x31, 0(sp)
   ADDI sp, sp, 216
   RET
+
+.global mambo_gp_tp_context_switch
+mambo_gp_tp_context_switch:
+  # Switch register values of gp and tp with shadow values
+  C.ADDI sp, -16
+  SD t0, 8(sp)
+  SD t1, 0(sp)
+
+  LD t0, gp_shadow_ptr
+  LD t1, 0(t0)
+  SD gp, 0(t0)
+  MV gp, t1
+  LD t0, tp_shadow_ptr
+  LD t1, 0(t0)
+  SD tp, 0(t0)
+  MV tp, t1
+
+  LD t0, 8(sp)
+  LD t1, 0(sp)
+  C.ADDI sp, 16
+  RET
 #endif
 
 .global dbm_client_entry

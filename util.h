@@ -27,6 +27,11 @@
 #ifdef DBM_ARCH_RISCV64
 extern uintptr_t gp_shadow_ptr;
 extern uintptr_t tp_shadow_ptr;
+
+/**
+ * Switch register values of gp and tp with shadow values.
+ */
+void mambo_gp_tp_context_switch();
 #endif
 
 extern void dbm_client_entry(uintptr_t addr, uintptr_t *stack_top);

@@ -419,9 +419,26 @@ int __emit_branch_cond(inst_set inst_type, void *write, uintptr_t target, mambo_
   return 0;
 }
 
+#ifdef DBM_ARCH_RISCV64
+/**
+ * Write pure function call without any context setup.
+ * @warning If the target function requires the gp or tp (e.g. static variables) the 
+ *  correct values must be set!
+ * @param ctx MAMBO context.
+ * @param function_ptr Target function.
+ */
+static void emit_pure_fcall(mambo_context *ctx, void *function_ptr);
+#endif
+
 void emit_fcall(mambo_context *ctx, void *function_ptr) {
   // First try an immediate call, and if that is out of range then generate an indirect call
 #ifdef DBM_ARCH_RISCV64
+  emit_pure_fcall(ctx, mambo_gp_tp_context_switch);
+  emit_pure_fcall(ctx, function_ptr);
+  emit_pure_fcall(ctx, mambo_gp_tp_context_switch);
+}
+
+static void emit_pure_fcall(mambo_context *ctx, void *function_ptr) {
   mambo_cond cond = {0, 0, AL};
   int ret = __emit_branch_cond(ctx->code.inst_type, ctx->code.write_p, (uintptr_t)function_ptr, cond, true);
 #else
@@ -465,7 +482,11 @@ int emit_safe_fcall(mambo_context *ctx, void *function_ptr, int argno) {
 
   emit_push(ctx, to_push);
   emit_set_reg_ptr(ctx, MAX_FCALL_ARGS + PARAM_REGS_OFFSET, function_ptr);
+#ifdef DBM_ARCH_RISCV64
+  emit_pure_fcall(ctx, safe_fcall_trampoline);
+#else
   emit_fcall(ctx, safe_fcall_trampoline);
+#endif
   emit_pop(ctx, to_push);
 
   return 0;
