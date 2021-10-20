@@ -14,6 +14,21 @@ extern "C" {
 
 typedef struct TraceWriter TraceWriter;
 typedef struct TraceEntry TraceEntry;
+typedef enum {
+	// Branch taken: 1 Bit
+    TraceEntryFlags_BranchNotTaken = 0 << 0,
+    TraceEntryFlags_BranchTaken = 1 << 0,
+
+    // Branch type: 2 Bits
+    TraceEntryFlags_BranchTypeJump = 1 << 1,
+    TraceEntryFlags_BranchTypeCall = 2 << 1,
+    TraceEntryFlags_BranchTypeReturn = 3 << 1,
+
+    // Stack (de)allocations
+    TraceEntryFlags_StackIsCall = 1 << 0,
+    TraceEntryFlags_StackIsReturn = 2 << 0,
+    TraceEntryFlags_StackIsOther = 3 << 0
+} TraceWriter_TraceEntryFlags;
 
 // Constructor wrapper
 TraceWriter* TraceWriter_new(char *filenamePrefix);
