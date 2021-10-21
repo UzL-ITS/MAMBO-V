@@ -224,10 +224,11 @@ int riscv_b_cond_helper(uint16_t **write_p, uint64_t target, mambo_cond *cond)
 			break;
 		}
 		(*write_p)++;
+		return INST_16BIT;
 	}
 
 	// Offsets up to +-4 KiB are possible
-	else if (riscv_check_sb_type(offset)) {
+	if (riscv_check_sb_type(offset)) {
 		unsigned int immlo = ((offset >> 11) & 1) | (offset & (0xF << 1));
 		unsigned int immhi = ((offset >> 6) & 64) | ((offset >> 5) & 0x3F);
 
@@ -262,11 +263,11 @@ int riscv_b_cond_helper(uint16_t **write_p, uint64_t target, mambo_cond *cond)
 			break;
 		}
 		*write_p += 2;
+		return INST_32BIT;
 	}
 	else {
 		return -1;
 	}
-	return 0;
 }
 
 int riscv_bez_helper(uint16_t **write_p, enum reg reg, uint64_t target)

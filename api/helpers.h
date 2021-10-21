@@ -160,8 +160,8 @@ int emit_branch(mambo_context *ctx, void *target);
  * @param ctx MAMBO context.
  * @param target Branch target.
  * @param cond Branch condition.
- * @return 0 if executed successfully, else non-zero.
- * @see mambo_cond
+ * @retval >=0: Size of the branch inserted in bytes (usually 2 or 4 bytes).
+ * @retval -1: Branch or jump not written.
  */
 int emit_branch_cond(mambo_context *ctx, void *target, mambo_cond cond);
 
