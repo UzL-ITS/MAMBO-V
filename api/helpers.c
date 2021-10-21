@@ -390,12 +390,14 @@ int __emit_branch_cond(inst_set inst_type, void *write, uintptr_t target, mambo_
         thumb_b32_cond_helper((uint16_t **)&write, target, cond);
         assert((write_c + 4) == write);
       }
+      return INST_16BIT;
       break;
     case ARM_INST:
       if (target & THUMB) return -1;
       diff -= 8;
       if (diff < -33554432 || diff > 33554428) return -1;
       arm_branch_helper(write, target, link, cond);
+      return INST_32BIT;
       break;
     default:
       return -1;
@@ -410,13 +412,13 @@ int __emit_branch_cond(inst_set inst_type, void *write, uintptr_t target, mambo_
     if (diff < -1048576 || diff > 1048572) return -1;
     a64_b_cond_helper(write, target, cond);
   }
+  return INST_32BIT;
 #endif
 #ifdef DBM_ARCH_RISCV64
   if (cond.cond == AL)
     cond.r1 = link;
   return riscv_b_cond_helper((uint16_t **)&write, target, &cond);
 #endif
-  return 0;
 }
 
 #ifdef DBM_ARCH_RISCV64
@@ -632,8 +634,8 @@ inline int emit_add_sub(mambo_context *ctx, int rd, int rn, int rm) {
 int emit_branch_cond(mambo_context *ctx, void *target, mambo_cond cond) {
   void *write_p = mambo_get_cc_addr(ctx);
   int ret = __emit_branch_cond(mambo_get_inst_type(ctx), write_p, (uintptr_t)target, cond, false);
-  if (ret == 0) {
-    mambo_set_cc_addr(ctx, write_p + 4);
+  if (ret <= 0) {
+    mambo_set_cc_addr(ctx, write_p + ret);
   }
   return ret;
 }
