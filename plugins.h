@@ -16,6 +16,8 @@
   See the License for the specific language governing permissions and
   limitations under the License.
 */
+#ifndef __PLUGINS_H
+#define __PLUGINS_H
 
 #include "dbm.h"
 #include "scanner_public.h"
@@ -38,3 +40,5 @@
 #include "api/helpers.h"
 #include "scanner_common.h"
 #include "api/hash_table.h"
+
+#endif
