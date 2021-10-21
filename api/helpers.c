@@ -482,7 +482,11 @@ int emit_safe_fcall(mambo_context *ctx, void *function_ptr, int argno) {
 
   emit_push(ctx, to_push);
   emit_set_reg_ptr(ctx, MAX_FCALL_ARGS + PARAM_REGS_OFFSET, function_ptr);
+#ifdef DBM_ARCH_RISCV64
+  emit_pure_fcall(ctx, safe_fcall_trampoline);
+#else
   emit_fcall(ctx, safe_fcall_trampoline);
+#endif
   emit_pop(ctx, to_push);
 
   return 0;
