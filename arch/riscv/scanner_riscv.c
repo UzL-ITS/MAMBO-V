@@ -551,11 +551,13 @@ int riscv_get_mambo_cond(riscv_instruction inst, uint16_t *read_address,
 	case RISCV_C_BEQZ:
 		cond->cond = EQ;
 		riscv_c_beqz_decode_fields(read_address, &cond->r1, &immhi, &immlo);
+		cond->r1 += 8;	// Offset for C extension registers
 		cond->r2 = x0;
 		break;
 	case RISCV_C_BNEZ:
 		cond->cond = NE;
 		riscv_c_bnez_decode_fields(read_address, &cond->r1, &immhi, &immlo);
+		cond->r1 += 8;	// Offset for C extension registers
 		cond->r2 = x0;
 		break;
 	case RISCV_BEQ:
@@ -589,17 +591,10 @@ int riscv_get_mambo_cond(riscv_instruction inst, uint16_t *read_address,
 	if (target != NULL) {
 		int64_t offset;
 		if (riscv_get_inst_length(inst) == INST_32BIT) {
-			offset = (immhi & 64) << 6
-				| (immhi & 0x2F) << 5
-				| (immlo & 0x1E)
-				| (immlo & 1) << 11;
+			riscv_calc_b_imm(immhi, immlo, &offset);
 			offset = sign_extend64(13, offset);
 		} else {
-			offset = (immhi & 4) << 6
-				| (immhi & 3) << 3
-				| (immlo & 0x18) << 3
-				| (immlo & 6)
-				| (immlo & 1) << 5;
+			riscv_calc_cb_imm(immhi, immlo, &offset);
 			offset = sign_extend64(9, offset);
 		}
 		*target = (uint64_t)read_address + offset;
