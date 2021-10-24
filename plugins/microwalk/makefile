@@ -3,7 +3,9 @@ DBM_PLUGIN_ROOT = plugins/microwalk
 
 CXXFLAGS+=-fno-split-stack
 LDFLAGS+=-lcrypto
-export PLUGINS+=$(DBM_PLUGIN_ROOT)/tracer.c $(DBM_PLUGIN_ROOT)/trace_writer.cpp $(DBM_PLUGIN_ROOT)/trace_writer_wrapper.cpp
+export PLUGINS+=$(DBM_PLUGIN_ROOT)/tracer.c \
+				$(DBM_PLUGIN_ROOT)/trace_writer.cpp \
+				$(DBM_PLUGIN_ROOT)/trace_writer_wrapper.cpp \
 
 CXX=$(CROSS_PREFIX)g++
 

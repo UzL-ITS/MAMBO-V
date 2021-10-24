@@ -6,6 +6,7 @@
 #include <assert.h>
 #include <locale.h>
 #include <inttypes.h>
+#include <string.h>
 
 #include "trace_writer_wrapper.h"
 #include "../../plugins.h"
@@ -17,6 +18,7 @@
 	#define debug(...)
 #endif
 
+#define INTERESTING_IMG_NR 2
 
 // Tracer helper prototypes
 void tracer_write_start_trace_instrumentation(mambo_context *ctx, int size);
@@ -32,6 +34,11 @@ void tracer_entry_helper_jump(TraceEntry **next_entry, uintptr_t source_address,
 // Strings
 char testcase_start_name[] = "PinNotifyTestcaseStart";
 char testcase_end_name[] = "PinNotifyTestcaseEnd";
+char *interesting_images[INTERESTING_IMG_NR] = { // Must be absolute paths
+	"/home/root/wrapper",
+	"/usr/lib/libcrypto.so.1.1"
+};
+const int interesting_images_count = INTERESTING_IMG_NR;
 
 TraceEntry *entry_buffer_next;
 TraceEntry *entry_buffer_end;
@@ -39,6 +46,7 @@ TraceEntry *entry_buffer_end;
 TraceWriter *trace_writer;
 
 int main_thread_id = -1;
+int is_intresting = true;
 
 int tracer_pre_thread_handler(mambo_context *ctx)
 {
@@ -114,9 +122,32 @@ int tracer_test_end_pre_fn_handler(mambo_context *ctx)
 
 int tracer_test_end_post_fn_handler(mambo_context *ctx) {}
 
+int tracer_pre_bb_handler(mambo_context *ctx)
+{
+	char *sym_name;
+	void *start_address;
+	char *filename;
+	get_symbol_info_by_addr(
+		(uintptr_t)mambo_get_source_addr(ctx), &sym_name, &start_address, &filename
+	);
+
+	// Check if current image is in interesting images list
+	is_intresting = false;
+	for (int i = 0; i < interesting_images_count; i++) {
+		if (strcmp(interesting_images[i], filename) == 0) {
+			is_intresting = true;
+			break;
+		}
+	}
+	debug("[tracer] At address 0x%08x, interesting %d, symbol %-30s in image %-40s\n", start_address, is_intresting, sym_name, filename);
+}
+
 int tracer_pre_inst_handler(mambo_context *ctx) 
 {
-	// TODO: Check intresting image
+	// Abort instrumentation if source address is in an interesting image to save time
+	// (following MicroWalks procedure)
+	if (!is_intresting)
+		return 0;
 
 	mambo_branch_type branch_type = mambo_get_branch_type(ctx);
 
@@ -298,6 +329,8 @@ __attribute__((constructor)) void branch_count_init_plugin()
 	mambo_register_pre_thread_cb(ctx, &tracer_pre_thread_handler);
 	mambo_register_post_thread_cb(ctx, &tracer_post_thread_handler);
 	mambo_register_pre_inst_cb(ctx, &tracer_pre_inst_handler);
+
+	mambo_register_pre_basic_block_cb(ctx, &tracer_pre_bb_handler);
 
 	setlocale(LC_NUMERIC, "");
 }
