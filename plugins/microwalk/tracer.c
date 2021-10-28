@@ -52,8 +52,6 @@ int tracer_pre_thread_handler(mambo_context *ctx)
 {
 	// Only trace main thread, first thread is main thread
 	if (main_thread_id == -1) {
-		trace_writer = TraceWriter_new("");
-		TraceWriter_InitPrefixMode("");
 		main_thread_id == ctx->thread_data->tid;
 
 		entry_buffer_next = TraceWriter_Begin(trace_writer);
@@ -122,14 +120,46 @@ int tracer_test_end_pre_fn_handler(mambo_context *ctx)
 
 int tracer_test_end_post_fn_handler(mambo_context *ctx) {}
 
+int tracer_vm_op_handler(mambo_context *ctx)
+{
+	// Initialize the tracer write as early as possible
+	if (trace_writer == NULL) {
+		trace_writer = TraceWriter_new("");
+		TraceWriter_InitPrefixMode("");
+	}
+
+	if (mambo_get_vm_op(ctx) == VM_MAP) {
+		void *start_address;
+		void *end_address;
+		char *filename;
+		int ret = get_image_info_by_addr(
+			(uintptr_t)mambo_get_vm_addr(ctx), &start_address, &end_address, &filename
+		);
+		// Check if it is a new image
+		if (ret < 0 || start_address != mambo_get_vm_addr(ctx))
+			return 0;
+
+		// Check if current image is in interesting images list
+		int intr = false;
+		for (int i = 0; i < interesting_images_count; i++) {
+			if (strcmp(interesting_images[i], filename) == 0) {
+				intr = true;
+				break;
+			}
+		}
+
+		TraceWriter_WriteImageLoadData(intr, (uint64_t)start_address, (uint64_t)end_address, filename);
+
+		debug("[tracer] LOADED IMAGE: At address 0x%016lx - 0x%016lx, interesting  %d    in image %s\n", start_address, end_address, intr, filename);
+	}
+}
+
 int tracer_pre_bb_handler(mambo_context *ctx)
 {
-	char *sym_name;
 	void *start_address;
+	void *end_address;
 	char *filename;
-	get_symbol_info_by_addr(
-		(uintptr_t)mambo_get_source_addr(ctx), &sym_name, &start_address, &filename
-	);
+	get_image_info_by_addr((uintptr_t)mambo_get_source_addr(ctx), &start_address, &end_address, &filename);
 
 	// Check if current image is in interesting images list
 	is_intresting = false;
@@ -139,7 +169,6 @@ int tracer_pre_bb_handler(mambo_context *ctx)
 			break;
 		}
 	}
-	debug("[tracer] At address 0x%08x, interesting %d, symbol %-30s in image %-40s\n", start_address, is_intresting, sym_name, filename);
 }
 
 int tracer_pre_inst_handler(mambo_context *ctx) 
@@ -320,7 +349,7 @@ __attribute__((constructor)) void branch_count_init_plugin()
 	assert(ctx != NULL);
 
 	// Register function callbacks
-	// TODO: malloc und stack ding
+	// TODO: malloc
 	mambo_register_function_cb(ctx, testcase_start_name, 
 		&tracer_test_start_pre_fn_handler, &tracer_test_start_post_fn_handler, 1);
 	mambo_register_function_cb(ctx, testcase_end_name, 
@@ -331,6 +360,7 @@ __attribute__((constructor)) void branch_count_init_plugin()
 	mambo_register_pre_inst_cb(ctx, &tracer_pre_inst_handler);
 
 	mambo_register_pre_basic_block_cb(ctx, &tracer_pre_bb_handler);
+	mambo_register_vm_op_cb(ctx, &tracer_vm_op_handler);
 
 	setlocale(LC_NUMERIC, "");
 }
