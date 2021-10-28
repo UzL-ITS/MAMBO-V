@@ -248,7 +248,27 @@ int mambo_reserve_cc_space(mambo_context *ctx, size_t size);
 mambo_branch_type mambo_get_branch_type(mambo_context *ctx);
 
 /* Symbol-related functions */
+/**
+ * Get information to a symbol by it's address.
+ * @param addr Address of interest.
+ * @param sym_name Will be filled with the symbol name string.
+ * @param start_addr Will be set to the start address of the symbol.
+ * @param filename Will contain the symbol's origin filename.
+ * @retval 0: No errors.
+ * @retval -1: Error, could not gather information.
+ */
 int get_symbol_info_by_addr(uintptr_t addr, char **sym_name, void **start_addr, char **filename);
+
+/**
+ * Get information to an image containing the given address.
+ * @param addr Address of interest.
+ * @param start_addr Will be set to the start address of the image.
+ * @param end_addr Will be set to the end address of the image.
+ * @param filename Will contain the origin filename.
+ * @retval 0: No errors.
+ * @retval -1: Error, could not gather information.
+ */
+int get_image_info_by_addr(uintptr_t addr, void **start_addr, void **end_addr, char **filename);
 typedef int (*stack_frame_handler)(void *data, void *addr, char *sym_name, void *symbol_start_addr, char *filename);
 int get_backtrace(stack_frame_t *fp, stack_frame_handler handler, void *ptr);
 
