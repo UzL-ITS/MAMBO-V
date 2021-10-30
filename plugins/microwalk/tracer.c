@@ -2,6 +2,7 @@
 // Currently only for RISC-V targets
 #ifdef __riscv
 
+#include "tracer.h"
 #include <stdio.h>
 #include <assert.h>
 #include <locale.h>
@@ -10,7 +11,6 @@
 
 #include "trace_writer_wrapper.h"
 #include "../../plugins.h"
-#include "tracer_helpers.h"
 
 #ifdef DEBUG
 	#define debug(...) fprintf(stderr, __VA_ARGS__)
@@ -19,19 +19,6 @@
 #endif
 
 #define INTERESTING_IMG_NR 2
-
-// Tracer helper prototypes
-void tracer_write_start_trace_instrumentation(mambo_context *ctx, int size);
-void tracer_write_end_trace_instrumentation(mambo_context *ctx);
-void tracer_testcase_start_helper(int testcase_id, TraceEntry **next_entry);
-void tracer_testcase_end_helper(TraceEntry **next_entry);
-TraceEntry *tracer_check_buffer_and_store_helper(TraceEntry *next_entry);
-void tracer_sp_notify_helper(uintptr_t stack_pointer_min, uintptr_t stack_pointer_max, TraceEntry **next_entry);
-void tracer_entry_helper_read(TraceEntry **next_entry, uintptr_t instruction_address, uintptr_t memory_address, uint32_t size);
-void tracer_entry_helper_write(TraceEntry **next_entry, uintptr_t instruction_address, uintptr_t memory_address, uint32_t size);
-void tracer_entry_helper_branch(TraceEntry **next_entry, uintptr_t source_address, uintptr_t target_address, uint8_t taken, uint8_t type);
-void tracer_entry_helper_jump(TraceEntry **next_entry, uintptr_t source_address, uintptr_t target_address, uint8_t type);
-void tracer_entry_helper_stack_mod(TraceEntry **next_entry, uintptr_t instruction_address, uintptr_t new_stack_pointer, uint8_t flags);
 
 // Tracer options
 const bool enable_stack_allocation_tracking = true;
@@ -93,7 +80,6 @@ int tracer_test_start_post_fn_handler(mambo_context *ctx)
 	emit_set_reg_ptr(ctx, reg1, &entry_buffer_next);
 	
 	/* 
-	 * Setup parameter registers and call
 	 * void tracer_testcase_start_helper(
 	 *     reg0: int testcase_id,
 	 *     reg1: TraceEntry** next_entry
@@ -113,13 +99,13 @@ int tracer_test_end_pre_fn_handler(mambo_context *ctx)
 	 * function call.
 	 */
 
+	emit_set_reg_ptr(ctx, reg0, &entry_buffer_next);
+
 	/* 
-	 * Setup parameter registers and call
 	 * void tracer_testcase_end_helper(
 	 *     reg0: TraceEntry** next_entry
 	 * )
 	 */
-	emit_set_reg_ptr(ctx, reg0, &entry_buffer_next);
 	emit_fcall(ctx, tracer_testcase_end_helper);
 
 	debug("    PinNotifyTestcaseEnd() instrumented.\n");
@@ -129,15 +115,9 @@ int tracer_test_end_post_fn_handler(mambo_context *ctx) {}
 
 int tracer_sp_notify_pre_fn_handler(mambo_context *ctx)
 {
-	/*
-	 * Because this handler is called directly after another function returned, the
-	 * original code does not expect anything in the volatile registers. Therefore
-	 * there is no need pushing any function argument registers or using the safe
-	 * function call.
-	 */
+	emit_set_reg_ptr(ctx, reg2, &entry_buffer_next);
 
 	/* 
-	 * Setup parameter registers and call.
 	 * Param 0 and 1 unchanged from original call to PinNotifyStackPointer and there is
 	 * no need to backup them because the result of PinNotifyStackPointer is ignored
 	 * anyways.
@@ -147,7 +127,6 @@ int tracer_sp_notify_pre_fn_handler(mambo_context *ctx)
 	 * 		reg2: TraceEntry **next_entry
 	 * )
 	 */
-	emit_set_reg_ptr(ctx, reg2, &entry_buffer_next);
 	emit_fcall(ctx, tracer_sp_notify_helper);
 
 	debug("    PinNotifyStackPointer() instrumented.\n");
