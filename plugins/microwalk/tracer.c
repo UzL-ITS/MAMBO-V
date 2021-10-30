@@ -26,19 +26,26 @@ void tracer_write_end_trace_instrumentation(mambo_context *ctx);
 void tracer_testcase_start_helper(int testcase_id, TraceEntry **next_entry);
 void tracer_testcase_end_helper(TraceEntry **next_entry);
 TraceEntry *tracer_check_buffer_and_store_helper(TraceEntry *next_entry);
+void tracer_sp_notify_helper(uintptr_t stack_pointer_min, uintptr_t stack_pointer_max, TraceEntry **next_entry);
 void tracer_entry_helper_read(TraceEntry **next_entry, uintptr_t instruction_address, uintptr_t memory_address, uint32_t size);
 void tracer_entry_helper_write(TraceEntry **next_entry, uintptr_t instruction_address, uintptr_t memory_address, uint32_t size);
 void tracer_entry_helper_branch(TraceEntry **next_entry, uintptr_t source_address, uintptr_t target_address, uint8_t taken, uint8_t type);
 void tracer_entry_helper_jump(TraceEntry **next_entry, uintptr_t source_address, uintptr_t target_address, uint8_t type);
+void tracer_entry_helper_stack_mod(TraceEntry **next_entry, uintptr_t instruction_address, uintptr_t new_stack_pointer, uint8_t flags);
+
+// Tracer options
+const bool enable_stack_allocation_tracking = true;
 
 // Strings
-char testcase_start_name[] = "PinNotifyTestcaseStart";
-char testcase_end_name[] = "PinNotifyTestcaseEnd";
+char notify_testcase_start_name[] = "PinNotifyTestcaseStart";
+char notify_testcase_end_name[] = "PinNotifyTestcaseEnd";
+char notify_stack_pointer_name[] = "PinNotifyStackPointer";
 char *interesting_images[INTERESTING_IMG_NR] = { // Must be absolute paths
 	"/home/root/wrapper",
 	"/usr/lib/libcrypto.so.1.1"
 };
 const int interesting_images_count = INTERESTING_IMG_NR;
+
 
 TraceEntry *entry_buffer_next;
 TraceEntry *entry_buffer_end;
@@ -119,6 +126,34 @@ int tracer_test_end_pre_fn_handler(mambo_context *ctx)
 }
 
 int tracer_test_end_post_fn_handler(mambo_context *ctx) {}
+
+int tracer_sp_notify_pre_fn_handler(mambo_context *ctx)
+{
+	/*
+	 * Because this handler is called directly after another function returned, the
+	 * original code does not expect anything in the volatile registers. Therefore
+	 * there is no need pushing any function argument registers or using the safe
+	 * function call.
+	 */
+
+	/* 
+	 * Setup parameter registers and call.
+	 * Param 0 and 1 unchanged from original call to PinNotifyStackPointer and there is
+	 * no need to backup them because the result of PinNotifyStackPointer is ignored
+	 * anyways.
+	 * void tracer_sp_notify_helper(
+	 * 		reg0: uintptr_t stack_pointer_min,
+	 * 		reg1: uintptr_t stack_pointer_max,
+	 * 		reg2: TraceEntry **next_entry
+	 * )
+	 */
+	emit_set_reg_ptr(ctx, reg2, &entry_buffer_next);
+	emit_fcall(ctx, tracer_sp_notify_helper);
+
+	debug("    PinNotifyStackPointer() instrumented.\n");
+}
+
+int tracer_sp_notify_post_fn_handler(mambo_context *ctx) {}
 
 int tracer_vm_op_handler(mambo_context *ctx)
 {
@@ -342,6 +377,65 @@ int tracer_pre_inst_handler(mambo_context *ctx)
 	}
 }
 
+int tracer_post_inst_handler(mambo_context *ctx)
+{
+	// Abort instrumentation if source address is in an interesting image to save time
+	// (following MicroWalks procedure)
+	if (!is_intresting || !enable_stack_allocation_tracking)
+		return 0;
+
+	mambo_branch_type branch_type = mambo_get_branch_type(ctx);
+	enum reg rd = 0;
+	if (!mambo_is_load_or_store(ctx) && branch_type == BRANCH_NONE) {
+		/* 
+		 * Explict memory operations (load and stores) and conditional branches are
+		 * already handled in pre instruction handler. At this point, the current 
+		 * instruction is either encoded in the R, I, U or J format where the rd field
+		 * is always at the same location, or it is a compressed instruction. The only
+		 * compressed instructions that can modifiy the stack pointer are CI- and 
+		 * CR-type instructions also having the rd field always at the same location.
+		 */
+		if (mambo_get_inst_len(ctx) == INST_32BIT) {
+			unsigned int rs1, imm;
+			riscv_ld_decode_fields(mambo_get_source_addr(ctx), &rd, &rs1, &imm);
+
+		} else { // 16 bit instructions
+			switch(mambo_get_inst(ctx)) {
+			case RISCV_C_LI: // CI
+			case RISCV_C_ADDI: // CI
+			case RISCV_C_ADDIW: // CI
+			case RISCV_C_ADDI16SP: // CI
+			case RISCV_C_SLLI: // CI
+			case RISCV_C_MV:  // CR
+			case RISCV_C_ADD: { // CR
+				unsigned rs2;
+				riscv_c_add_decode_fields(mambo_get_source_addr(ctx), &rd, &rs2);
+			}
+			}
+		}
+
+		if (rd == sp) {
+			tracer_write_start_trace_instrumentation(ctx, 124);
+
+			debug("[tracer] Instrument stack pointer modification\n");
+			emit_set_reg_ptr(ctx, reg0, &entry_buffer_next);
+			emit_set_reg_ptr(ctx, reg1, ctx->code.read_address);
+			emit_add_sub_i(ctx, reg2, sp, ctx->code.plugin_pushed_reg_count * sizeof(uintptr_t));
+			emit_set_reg(ctx, reg3, TraceEntryFlags_StackIsOther);
+
+			/* void tracer_entry_helper_stack_mod(
+				* 		reg0: TraceEntry **next_entry, 
+				* 		reg1: uintptr_t instruction_address,
+				* 		reg2: uintptr_t new_stack_pointer, 
+				* 		reg3: uint8_t flags
+				* )
+				*/
+			emit_safe_fcall(ctx, tracer_entry_helper_stack_mod, 4);
+
+			tracer_write_end_trace_instrumentation(ctx);
+		}
+	}
+}
 
 __attribute__((constructor)) void branch_count_init_plugin() 
 {
@@ -350,14 +444,17 @@ __attribute__((constructor)) void branch_count_init_plugin()
 
 	// Register function callbacks
 	// TODO: malloc
-	mambo_register_function_cb(ctx, testcase_start_name, 
+	mambo_register_function_cb(ctx, notify_testcase_start_name, 
 		&tracer_test_start_pre_fn_handler, &tracer_test_start_post_fn_handler, 1);
-	mambo_register_function_cb(ctx, testcase_end_name, 
+	mambo_register_function_cb(ctx, notify_testcase_end_name, 
 		&tracer_test_end_pre_fn_handler, &tracer_test_end_post_fn_handler, 0);
+	mambo_register_function_cb(ctx, notify_stack_pointer_name, 
+		&tracer_sp_notify_pre_fn_handler, &tracer_sp_notify_post_fn_handler, 2);
 	
 	mambo_register_pre_thread_cb(ctx, &tracer_pre_thread_handler);
 	mambo_register_post_thread_cb(ctx, &tracer_post_thread_handler);
 	mambo_register_pre_inst_cb(ctx, &tracer_pre_inst_handler);
+	mambo_register_post_inst_cb(ctx, &tracer_post_inst_handler);
 
 	mambo_register_pre_basic_block_cb(ctx, &tracer_pre_bb_handler);
 	mambo_register_vm_op_cb(ctx, &tracer_vm_op_handler);
@@ -401,6 +498,12 @@ TraceEntry *tracer_check_buffer_and_store_helper(TraceEntry *next_entry)
 	return next_entry;
 }
 
+void tracer_sp_notify_helper(uintptr_t stack_pointer_min, uintptr_t stack_pointer_max, TraceEntry **next_entry)
+{
+	*next_entry = TraceWriter_InsertStackPointerInfoEntry(*next_entry, stack_pointer_min, stack_pointer_max);
+	*next_entry = tracer_check_buffer_and_store_helper(*next_entry);
+}
+
 void tracer_entry_helper_read(TraceEntry **next_entry, uintptr_t instruction_address, uintptr_t memory_address, uint32_t size)
 {
 	*next_entry = TraceWriter_InsertMemoryReadEntry(*next_entry, instruction_address, memory_address, size);
@@ -422,6 +525,12 @@ void tracer_entry_helper_branch(TraceEntry **next_entry, uintptr_t source_addres
 void tracer_entry_helper_jump(TraceEntry **next_entry, uintptr_t source_address, uintptr_t target_address, uint8_t type)
 {
 	*next_entry = TraceWriter_InsertJumpEntry(*next_entry, source_address, target_address, type);
+	*next_entry = tracer_check_buffer_and_store_helper(*next_entry);
+}
+
+void tracer_entry_helper_stack_mod(TraceEntry **next_entry, uintptr_t instruction_address, uintptr_t new_stack_pointer, uint8_t flags)
+{
+	*next_entry = TraceWriter_InsertStackPointerModificationEntry(*next_entry, instruction_address, new_stack_pointer, flags);
 	*next_entry = tracer_check_buffer_and_store_helper(*next_entry);
 }
 
