@@ -121,4 +121,37 @@ void tracer_entry_helper_jump(TraceEntry **next_entry, uintptr_t source_address,
  */
 void tracer_entry_helper_stack_mod(TraceEntry **next_entry, uintptr_t instruction_address, uintptr_t new_stack_pointer, uint8_t flags);
 
+/**
+ * Calls tracer writer function and checks if buffer full.
+ * A call to this function can be inserted into the original code.
+ * @param size `size` parameter of `malloc()`.
+ * @param next_entry Pointer to next trace entry pointer.
+ */
+void tracer_entry_helper_alloc_param(uint64_t size, TraceEntry **next_entry);
+
+/**
+ * Calls tracer writer function and checks if buffer full.
+ * A call to this function can be inserted into the original code.
+ * @param memory_address Address of the allocated memory.
+ * @param next_entry Pointer to next trace entry pointer.
+ */
+void tracer_entry_helper_alloc_return(uintptr_t memory_address, TraceEntry **next_entry);
+
+/**
+ * Calls tracer writer function and checks if buffer full.
+ * A call to this function can be inserted into the original code.
+ * @param count `count` parameter of `calloc()`.
+ * @param size `size` parameter of `calloc()`.
+ * @param next_entry Pointer to next trace entry pointer.
+ */
+void tracer_entry_helper_calloc_param(uint64_t count, uint64_t size, TraceEntry **next_entry);
+
+/**
+ * Calls tracer writer function and checks if buffer full.
+ * A call to this function can be inserted into the original code.
+ * @param memory_address Address of the allocated memory.
+ * @param next_entry Pointer to next trace entry pointer.
+ */
+void tracer_entry_helper_free_param(uintptr_t memory_address, TraceEntry **next_entry);
+
 #endif

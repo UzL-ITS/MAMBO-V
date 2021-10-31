@@ -134,6 +134,109 @@ int tracer_sp_notify_pre_fn_handler(mambo_context *ctx)
 
 int tracer_sp_notify_post_fn_handler(mambo_context *ctx) {}
 
+int tracer_malloc_pre_fn_handler(mambo_context *ctx)
+{
+	emit_push(ctx, (1 << reg0));
+	emit_set_reg_ptr(ctx, reg1, &entry_buffer_next);
+
+	/* 
+	 * void tracer_entry_helper_alloc_param(
+	 * 		reg0: uint64_t size,
+	 * 		reg1: TraceEntry **next_entry 
+	 * )
+	 */
+	emit_fcall(ctx, tracer_entry_helper_alloc_param);
+	
+	emit_pop(ctx, (1 << reg0));
+}
+
+int tracer_malloc_post_fn_handler(mambo_context *ctx)
+{
+	emit_push(ctx, (1 << reg0));
+	emit_set_reg_ptr(ctx, reg1, &entry_buffer_next);
+
+	/*
+	 * void tracer_entry_helper_alloc_return(
+	 * 		reg0: uintptr_t memory_address, 
+	 * 		reg1: TraceEntry **next_entry
+	 * )
+	 */
+	emit_fcall(ctx, tracer_entry_helper_alloc_return);
+
+	emit_pop(ctx, (1 << reg0));
+
+	debug("    malloc() instrumented.\n");
+}
+
+int tracer_calloc_pre_fn_handler(mambo_context *ctx)
+{
+	emit_push(ctx, (1 << reg0) | (1 << reg1));
+	emit_set_reg_ptr(ctx, reg2, &entry_buffer_next);
+
+	/* 
+	 * void tracer_entry_helper_calloc_param(
+	 * 		reg0: uint64_t count, 
+	 * 		reg1: uint64_t size, 
+	 * 		reg2: TraceEntry **next_entry
+	 * )
+	 */
+	emit_fcall(ctx, tracer_entry_helper_calloc_param);
+	
+	emit_pop(ctx, (1 << reg0) | (1 << reg1));
+}
+
+int tracer_calloc_post_fn_handler(mambo_context *ctx)
+{
+	tracer_malloc_post_fn_handler(ctx);
+
+	debug("    calloc() instrumented.\n");
+}
+
+int tracer_realloc_pre_fn_handler(mambo_context *ctx)
+{
+	emit_push(ctx, (1 << reg0) | (1 << reg1));
+	emit_mov(ctx, reg0, reg1);
+	emit_set_reg_ptr(ctx, reg1, &entry_buffer_next);
+
+	/* 
+	 * void tracer_entry_helper_alloc_param(
+	 * 		reg0: uint64_t size, 
+	 * 		reg1: TraceEntry **next_entry
+	 * )
+	 */
+	emit_fcall(ctx, tracer_entry_helper_alloc_param);
+	
+	emit_pop(ctx, (1 << reg0) | (1 << reg1));
+}
+
+int tracer_realloc_post_fn_handler(mambo_context *ctx)
+{
+	tracer_malloc_post_fn_handler(ctx);
+
+	debug("    realloc() instrumented.\n");
+}
+
+int trace_free_pre_fn_handler(mambo_context *ctx)
+{
+	emit_push(ctx, (1 << reg0));
+	emit_set_reg_ptr(ctx, reg1, &entry_buffer_next);
+
+	/* 
+	 * void tracer_entry_helper_free_param(
+	 * 		reg0: uintptr_t memory_address,
+	 * 		reg1: TraceEntry **next_entry
+	 * )
+	 */
+	emit_fcall(ctx, tracer_entry_helper_alloc_param);
+	
+	emit_pop(ctx, (1 << reg0));
+
+	debug("    free() instrumented.\n");
+}
+
+int trace_free_post_fn_handler(mambo_context *ctx) {}
+
+
 int tracer_vm_op_handler(mambo_context *ctx)
 {
 	// Initialize the tracer write as early as possible
@@ -421,14 +524,19 @@ __attribute__((constructor)) void branch_count_init_plugin()
 	mambo_context *ctx = mambo_register_plugin();
 	assert(ctx != NULL);
 
-	// Register function callbacks
-	// TODO: malloc
+	// Register target wrapper function callbacks
 	mambo_register_function_cb(ctx, notify_testcase_start_name, 
 		&tracer_test_start_pre_fn_handler, &tracer_test_start_post_fn_handler, 1);
 	mambo_register_function_cb(ctx, notify_testcase_end_name, 
 		&tracer_test_end_pre_fn_handler, &tracer_test_end_post_fn_handler, 0);
 	mambo_register_function_cb(ctx, notify_stack_pointer_name, 
 		&tracer_sp_notify_pre_fn_handler, &tracer_sp_notify_post_fn_handler, 2);
+
+	// Register allocation functions from libc
+	mambo_register_function_cb(ctx, "malloc", &tracer_malloc_pre_fn_handler, &tracer_malloc_post_fn_handler, 1);
+	mambo_register_function_cb(ctx, "calloc", &tracer_calloc_pre_fn_handler, &tracer_calloc_post_fn_handler, 2);
+	mambo_register_function_cb(ctx, "realloc", &tracer_realloc_pre_fn_handler, &tracer_realloc_post_fn_handler, 2);
+	mambo_register_function_cb(ctx, "free", &trace_free_pre_fn_handler, &trace_free_post_fn_handler, 1);
 	
 	mambo_register_pre_thread_cb(ctx, &tracer_pre_thread_handler);
 	mambo_register_post_thread_cb(ctx, &tracer_post_thread_handler);
@@ -510,6 +618,30 @@ void tracer_entry_helper_jump(TraceEntry **next_entry, uintptr_t source_address,
 void tracer_entry_helper_stack_mod(TraceEntry **next_entry, uintptr_t instruction_address, uintptr_t new_stack_pointer, uint8_t flags)
 {
 	*next_entry = TraceWriter_InsertStackPointerModificationEntry(*next_entry, instruction_address, new_stack_pointer, flags);
+	*next_entry = tracer_check_buffer_and_store_helper(*next_entry);
+}
+
+void tracer_entry_helper_alloc_param(uint64_t size, TraceEntry **next_entry)
+{
+	*next_entry = TraceWriter_InsertHeapAllocSizeParameterEntry(*next_entry, size);
+	*next_entry = tracer_check_buffer_and_store_helper(*next_entry);
+}
+
+void tracer_entry_helper_alloc_return(uintptr_t memory_address, TraceEntry **next_entry)
+{
+	*next_entry = TraceWriter_InsertHeapAllocAddressReturnEntry(*next_entry, memory_address);
+	*next_entry = tracer_check_buffer_and_store_helper(*next_entry);
+}
+
+void tracer_entry_helper_calloc_param(uint64_t count, uint64_t size, TraceEntry **next_entry)
+{
+	*next_entry = TraceWriter_InsertCallocSizeParameterEntry(*next_entry, count, size);
+	*next_entry = tracer_check_buffer_and_store_helper(*next_entry);
+}
+
+void tracer_entry_helper_free_param(uintptr_t memory_address, TraceEntry **next_entry)
+{
+	*next_entry = TraceWriter_InsertHeapFreeAddressParameterEntry(*next_entry, memory_address);
 	*next_entry = tracer_check_buffer_and_store_helper(*next_entry);
 }
 
