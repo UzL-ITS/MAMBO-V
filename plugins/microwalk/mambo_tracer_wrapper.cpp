@@ -84,7 +84,24 @@ _EXPORT _NOINLINE void InitTarget()
 	BCryptOpenAlgorithmProvider(&dummy, BCRYPT_AES_ALGORITHM, nullptr, 0);
 	BCryptCloseAlgorithmProvider(dummy, 0);
 #else
+    // Run a the full target procedure becuase the dynamic linker evaluates PLT entries lazily.
+    // All bindings to external functions will be resolved and subsequent calls to them behave always in the same way.
+    // https://refspecs.linuxfoundation.org/ELF/zSeries/lzsabi0_zSeries/x2251.html
+    uint8_t secret_key[16] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
+    uint8_t plain[16] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
 
+    fread(NULL, 0, 0, NULL); // also resolve fread PLT entry
+
+    EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
+    EVP_EncryptInit_ex(ctx, EVP_aes_128_cbc(), nullptr, secret_key, nullptr);
+
+    uint8_t cipher[16];
+    int len;
+    EVP_EncryptUpdate(ctx, cipher, &len, plain, 16);
+
+    EVP_CIPHER_CTX_free(ctx);
+
+    //BIO_dump_fp(stderr, reinterpret_cast<const char *>(cipher), 16);
 #endif
 	
     // ] ***
