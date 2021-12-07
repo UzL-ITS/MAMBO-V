@@ -11,7 +11,7 @@ CXX=$(CROSS_PREFIX)g++
 
 .PHONY: wrapper_clean dbm_clean dbm
 
-all: wrapper dbm
+all: wrapper wrapper_rsa dbm
 
 dbm:
 	$(MAKE) -C $(DBM_DIR) all
@@ -22,7 +22,10 @@ dbm_clean:
 wrapper: mambo_tracer_wrapper.cpp
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) $^ -o $@
 
+wrapper_rsa: mambo_tracer_wrapper_rsa.cpp
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) $^ -o $@
+
 clean:
-	$(RM) wrapper
+	$(RM) -f wrapper wrapper_rsa
 
 cleanall: dbm_clean clean
