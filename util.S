@@ -24,6 +24,8 @@
 .syntax unified
 #endif
 
+#include <asm/unistd.h>
+
 #ifdef DBM_ARCH_RISCV64
 .global push_gen_regs
 push_gen_regs:
@@ -406,7 +408,7 @@ sigret:
   JR a0
 sigret:
   C.ADDI sp, 16
-  LI a7, 137
+  LI a7, __NR_rt_sigreturn
   ECALL
 #endif
 .endfunc
