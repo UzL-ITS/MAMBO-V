@@ -46,9 +46,9 @@
 #endif
 
 #ifdef DEBUG
-	#define debug(...) fprintf(stderr, __VA_ARGS__)
+  #define debug(...) log("signals", __VA_ARGS__)
 #else
-	#define debug(...)
+  #define debug(...)
 #endif
 
 #define self_send_signal_offset        ((uintptr_t)send_self_signal - (uintptr_t)&start_of_dispatcher_s)

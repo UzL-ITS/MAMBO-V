@@ -28,7 +28,7 @@
 #include "../../pie/pie-arm-encoder.h"
 
 #ifdef DEBUG
-  #define debug(...) fprintf(stderr, __VA_ARGS__)
+  #define debug(...) log("dispatcher_aarch32", __VA_ARGS__)
 #else
   #define debug(...)
 #endif

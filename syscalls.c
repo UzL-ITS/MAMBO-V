@@ -37,7 +37,7 @@
 #include "syscalls.h"
 
 #ifdef DEBUG
-  #define debug(...) fprintf(stderr, __VA_ARGS__)
+  #define debug(...) log("syscalls", __VA_ARGS__)
 #else
   #define debug(...)
 #endif

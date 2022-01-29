@@ -45,7 +45,7 @@
 #endif
 
 #ifdef DEBUG
-  #define debug(...) fprintf(stderr, __VA_ARGS__)
+  #define debug(...) log("dbm", __VA_ARGS__)
   #ifndef VERBOSE
     #define VERBOSE
   #endif
@@ -54,7 +54,7 @@
 #endif
 
 #ifdef VERBOSE
-  #define info(...) fprintf(stderr, __VA_ARGS__)
+  #define info(...) log("dbm", __VA_ARGS__)
 #else
   #define info(...)
 #endif
@@ -629,6 +629,65 @@ void notify_vm_op(vm_op_t op, uintptr_t addr, size_t size, int prot, int flags, 
 
 #ifndef DBM_TEST
 void main(int argc, char **argv, char **envp) {
+#ifdef DEBUG
+  // Setup logging
+  log_create("common", LOG_STDERR);
+  log_create("dbm", LOG_STDERR);
+  log_create("dispatcher", LOG_STDERR);
+  log_create("signals", LOG_STDERR);
+  log_create("syscalls", LOG_STDERR);
+  log_create("traces", LOG_STDERR);
+#ifdef __arm__
+  log_create("dispatcher_aarch32", LOG_STDERR);
+  log_create("scanner_a32", LOG_STDERR);
+  log_create("scanner_t32", LOG_STDERR);
+#elif defined(__aarch64__)
+  log_create("dispatcher_aarch64", LOG_STDERR);
+  log_create("scanner_a64", LOG_STDERR);
+#elif defined(DBM_ARCH_RISCV64)
+  log_create("dispatcher_riscv", LOG_STDERR);
+  log_create("scanner_riscv", LOG_STDERR);
+#endif
+
+  log_open("common", "w");
+  log_open("dbm", "w");
+  log_open("dispatcher", "w");
+  log_open("signals", "w");
+  log_open("syscalls", "w");
+  log_open("traces", "w");
+#ifdef __arm__
+  log_open("dispatcher_aarch32", "w");
+  log_open("scanner_a32", "w");
+  log_open("scanner_t32", "w");
+#elif defined(__aarch64__)
+  log_open("dispatcher_aarch64", "w");
+  log_open("scanner_a64", "w");
+#elif defined(DBM_ARCH_RISCV64)
+  log_open("dispatcher_riscv", "w");
+  log_open("scanner_riscv", "w");
+#endif
+
+  // Create logfile for all
+  FILE *all_log = log_open_raw_fp("debug", "w");
+  log_set_secondary_fp("common", all_log);
+  log_set_secondary_fp("dbm", all_log);
+  log_set_secondary_fp("dispatcher", all_log);
+  log_set_secondary_fp("signals", all_log);
+  log_set_secondary_fp("syscalls", all_log);
+  log_set_secondary_fp("traces", all_log);
+#ifdef __arm__
+  log_set_secondary_fp("dispatcher_aarch32", all_log);
+  log_set_secondary_fp("scanner_a32", all_log);
+  log_set_secondary_fp("scanner_t32", all_log);
+#elif defined(__aarch64__)
+  log_set_secondary_fp("dispatcher_aarch64", all_log);
+  log_set_secondary_fp("scanner_a64", all_log);
+#elif defined(DBM_ARCH_RISCV64)
+  log_set_secondary_fp("dispatcher_riscv", all_log);
+  log_set_secondary_fp("scanner_riscv", all_log);
+#endif
+#endif
+
   Elf *elf = NULL;
   
   if (argc < 2) {

@@ -27,7 +27,7 @@
 #include "../../pie/pie-a64-encoder.h"
 
 #ifdef DEBUG
-  #define debug(...) fprintf(stderr, __VA_ARGS__)
+  #define debug(...) log("dispatcher_aarch64", __VA_ARGS__)
 #else
   #define debug(...)
 #endif

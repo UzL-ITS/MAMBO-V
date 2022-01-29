@@ -39,6 +39,7 @@
 
 #include "common.h"
 #include "util.h"
+#include "mambo_logger.h"
 
 /* Various parameters which can be tuned */
 
