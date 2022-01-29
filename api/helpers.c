@@ -435,9 +435,17 @@ static void emit_pure_fcall(mambo_context *ctx, void *function_ptr);
 void emit_fcall(mambo_context *ctx, void *function_ptr) {
   // First try an immediate call, and if that is out of range then generate an indirect call
 #ifdef DBM_ARCH_RISCV64
+  emit_push(ctx, m_x10);
+  emit_set_reg(ctx, x10, CTX_MAMBO);    // set MAMBO gp and tp
   emit_pure_fcall(ctx, mambo_gp_tp_context_switch);
+  emit_pop(ctx, m_x10);
+
   emit_pure_fcall(ctx, function_ptr);
+
+  emit_push(ctx, m_x10);
+  emit_mov(ctx, x10, zero);    // set client gp and tp
   emit_pure_fcall(ctx, mambo_gp_tp_context_switch);
+  emit_pop(ctx, m_x10);
 }
 
 static void emit_pure_fcall(mambo_context *ctx, void *function_ptr) {

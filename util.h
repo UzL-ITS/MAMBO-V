@@ -25,13 +25,19 @@
 #include <signal.h>
 
 #ifdef DBM_ARCH_RISCV64
+
+#define CTX_CLIENT 0
+#define CTX_MAMBO 1
+
+extern uintptr_t gp_tp_mambo_ctx_ptr;
 extern uintptr_t gp_shadow_ptr;
 extern uintptr_t tp_shadow_ptr;
 
 /**
  * Switch register values of gp and tp with shadow values.
+ * @param switch_to_mambo_context If set, gp and tp are set to mambo context
  */
-void mambo_gp_tp_context_switch();
+void mambo_gp_tp_context_switch(bool switch_to_mambo_context);
 #endif
 
 extern void dbm_client_entry(uintptr_t addr, uintptr_t *stack_top);

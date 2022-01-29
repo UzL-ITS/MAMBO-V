@@ -464,11 +464,19 @@ void translate_svc_frame(ucontext_t *cont) {
   cont->uc_mcontext.regs[x30] = sp[25];
   sp += 26;
 #elif DBM_ARCH_RISCV64
-  for (int x = 1; x <= 31; x++) {
-    cont->context_reg(x) = sp[x-1];
+  sp += 256 / sizeof(sp[0]);
+  for (int x = 5; x <= 9; x++) {
+    cont->context_reg(x) = sp[x-3];
   }
-  cont->pc_field = sp[9]; // Get PC from x10
-  sp += 31;
+  for (int x = 19; x <= 31; x++) {
+    cont->context_reg(x) = sp[x-3];
+  }
+  cont->pc_field = sp[8-3]; // Get SPC from x8
+  cont->context_reg(x8) = sp[30];
+  cont->context_reg(x1) = sp[31];
+  sp += 32;
+  debug("context restored sp: 0x%lx\n", sp);
+  debug("context pc: 0x%lx\n", cont->pc_field);
 #endif
   cont->sp_field = (uintptr_t)sp;
 }
@@ -854,7 +862,7 @@ uintptr_t signal_dispatcher(int i, siginfo_t *info, void *context) {
     handler = global_data.signal_handlers[i];
 
     if (pc < cc_start || pc >= cc_end) {
-      fprintf(stderr, "Synchronous signal outside the code cache\n");
+      fprintf(stderr, "Synchronous signal (%d) outside the code cache\n", i);
       while(1);
     }
 

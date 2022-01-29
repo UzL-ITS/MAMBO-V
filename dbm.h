@@ -341,6 +341,7 @@ extern void th_enter(void *stack, uintptr_t cc_addr);
 extern void send_self_signal();
 extern void syscall_wrapper_svc();
 #ifdef DBM_ARCH_RISCV64
+extern int* gp_tp_mambo_ctx;
 extern void* gp_shadow;
 extern void* tp_shadow;
 #endif
