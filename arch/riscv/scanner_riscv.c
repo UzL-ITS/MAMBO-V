@@ -30,7 +30,7 @@
 #endif
 
 #ifdef DEBUG
-	#define debug(...) fprintf(stderr, __VA_ARGS__)
+	#define debug(...) log("scanner_riscv", __VA_ARGS__)
 #else
 	#define debug(...)
 #endif

@@ -37,7 +37,7 @@
 #include "syscalls.h"
 
 #ifdef DEBUG
-  #define debug(...) fprintf(stderr, __VA_ARGS__)
+  #define debug(...) log("syscalls", __VA_ARGS__)
 #else
   #define debug(...)
 #endif
@@ -485,6 +485,20 @@ int syscall_handler_pre(uintptr_t syscall_no, uintptr_t *args, uint16_t *next_in
       }
       break;
     }
+#endif
+#ifdef DEBUG
+    // Ignore dup/2/3 if it attempts to redirect `stdout` or `stderr` during debugging.
+    // Otherwise debug messages may be redirected and not printed to your terminal.
+    case __NR_dup:
+      // dup does not actively redirect the stream, but it is often used to backup it
+      // before it is redirected e.g. with `freopen` to /dev/null (see procps-top).
+      if (args[0] == fileno(stdout) || args[0] == fileno(stderr))
+      do_syscall = 0;
+      break;
+    case __NR_dup3:
+      if (args[1] == fileno(stdout) || args[1] == fileno(stderr))
+      do_syscall = 0;
+      break;
 #endif
   }
 

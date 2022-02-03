@@ -45,7 +45,7 @@
 #endif
 
 #ifdef DEBUG
-  #define debug(...) fprintf(stderr, __VA_ARGS__)
+  #define debug(...) log("traces", __VA_ARGS__)
   #ifndef VERBOSE
     #define VERBOSE
   #endif

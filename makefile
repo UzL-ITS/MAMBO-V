@@ -73,11 +73,15 @@ endif
 
 #DEFS += -DDEBUG
 DEFS += $(ARCH_OPTS)
-FLAGS+=-g
+FLAGS+=-gdwarf-4
 
 ASFLAGS+=$(FLAGS)
 CFLAGS+=$(FLAGS) -O2 -std=gnu99 -MMD -MP
 CXXFLAGS+=$(FLAGS) -O2 -MMD -MP
+
+ifeq ($(findstring -DDEBUG, $(DEFS)), -DDEBUG)
+	SOURCES += mambo_logger.c
+endif
 
 SOURCES += $(PLUGINS)
 OBJECTS += $(patsubst %.s,$(BUILD_DIR)/%.s.o,$(filter %.s,$(SOURCES))) \
@@ -117,7 +121,7 @@ $(BUILD_DIR)/%.cpp.o: %.cpp
 	$(CXX) $(CXXFLAGS) $(DEFS) $(OPTS) -c $< -o $@ -flto
 
 $(OUT): $(HEADERS) $(OBJECTS)
-	$(CXX) $(LDFLAGS) $(INCLUDES) -o $@ $(OBJECTS) $(PIE) $(LIBS) $(PLUGIN_ARGS)
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(INCLUDES) -o $@ $(OBJECTS) $(PIE) $(LIBS) $(PLUGIN_ARGS)
 
 cachesim:
 	PLUGINS="plugins/cachesim/cachesim.c plugins/cachesim/cachesim.S plugins/cachesim/cachesim_model.c" OUTPUT_FILE=mambo_cachesim make
