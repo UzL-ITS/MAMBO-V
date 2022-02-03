@@ -36,39 +36,43 @@ push_gen_regs:
    */
   # Move sp first, so that compressed instructions can be used
   # (SD replaced with C.SDSP by assembler)
-  ADDI sp, sp, -216
-  SD x3, 208(sp)
-  SD x4, 200(sp)
-  SD x5, 192(sp)
-  SD x6, 184(sp)
-  SD x7, 176(sp)
-  SD x8, 168(sp)
-  SD x9, 160(sp)
-  SD x12, 152(sp)
-  SD x13, 144(sp)
-  SD x14, 136(sp)
-  SD x15, 128(sp)
-  SD x16, 120(sp)
-  SD x17, 112(sp)
-  SD x18, 104(sp)
-  SD x19, 96(sp)
-  SD x20, 88(sp)
-  SD x21, 80(sp)
-  SD x22, 72(sp)
-  SD x23, 64(sp)
-  SD x24, 56(sp)
-  SD x25, 48(sp)
-  SD x26, 40(sp)
-  SD x27, 32(sp)
-  SD x28, 24(sp)
-  SD x29, 16(sp)
-  SD x30, 8(sp)
-  SD x31, 0(sp)
-  # Load gp and tp of MAMBO context
-  LD gp, gp_shadow_ptr
-  LD gp, 0(gp)
-  LD tp, tp_shadow_ptr
-  LD tp, 0(tp)
+  ADDI sp, sp, -224
+  SD x3, 224(sp)
+  SD x4, 208(sp)
+  SD x5, 200(sp)
+  SD x6, 192(sp)
+  SD x7, 184(sp)
+  SD x8, 176(sp)
+  SD x9, 168(sp)
+  SD x12, 160(sp)
+  SD x13, 152(sp)
+  SD x14, 144(sp)
+  SD x15, 136(sp)
+  SD x16, 128(sp)
+  SD x17, 120(sp)
+  SD x18, 112(sp)
+  SD x19, 104(sp)
+  SD x20, 96(sp)
+  SD x21, 88(sp)
+  SD x22, 80(sp)
+  SD x23, 72(sp)
+  SD x24, 64(sp)
+  SD x25, 56(sp)
+  SD x26, 48(sp)
+  SD x27, 40(sp)
+  SD x28, 32(sp)
+  SD x29, 24(sp)
+  SD x30, 16(sp)
+  SD x31, 8(sp)
+  # Load gp and tp of MAMBO context and store the client gp and tp
+  MV s0, ra
+  SD a0, 0(sp)
+  LI a0, 1
+  JAL mambo_gp_tp_context_switch
+  LD a0, 0(sp)
+  MV ra, s0
+  LD s0, 176(sp)
+  ADDI sp, sp, 8
   RET
 
 .global pop_gen_regs
@@ -78,48 +82,59 @@ pop_gen_regs:
    * x1 to x31 exept for x2 (sp), x1 (ra), x10 and x11
    * NOTE: You may want to also pop ra after the subroutine.
    */
-  # Store gp and tp of MAMBO context
-  LD t0, gp_shadow_ptr
-  SD gp, 0(t0)
-  LD t0, tp_shadow_ptr
-  SD tp, 0(t0)
-  LD x3, 208(sp)
-  LD x4, 200(sp)
-  LD x5, 192(sp)
-  LD x6, 184(sp)
-  LD x7, 176(sp)
-  LD x8, 168(sp)
-  LD x9, 160(sp)
-  LD x12, 152(sp)
-  LD x13, 144(sp)
-  LD x14, 136(sp)
-  LD x15, 128(sp)
-  LD x16, 120(sp)
-  LD x17, 112(sp)
-  LD x18, 104(sp)
-  LD x19, 96(sp)
-  LD x20, 88(sp)
-  LD x21, 80(sp)
-  LD x22, 72(sp)
-  LD x23, 64(sp)
-  LD x24, 56(sp)
-  LD x25, 48(sp)
-  LD x26, 40(sp)
-  LD x27, 32(sp)
-  LD x28, 24(sp)
-  LD x29, 16(sp)
-  LD x30, 8(sp)
-  LD x31, 0(sp)
-  ADDI sp, sp, 216
+  # Store gp and tp of MAMBO context and load the client gp and tp
+  MV s0, ra
+  ADDI sp, sp, -8
+  SD a0, 0(sp)
+  MV a0, zero
+  JAL mambo_gp_tp_context_switch
+  LD a0, 0(sp)
+  MV ra, s0
+  # LD x3, 216(sp)
+  # LD x4, 208(sp)
+  LD x5, 200(sp)
+  LD x6, 192(sp)
+  LD x7, 184(sp)
+  LD x8, 176(sp)
+  LD x9, 168(sp)
+  LD x12, 160(sp)
+  LD x13, 152(sp)
+  LD x14, 144(sp)
+  LD x15, 136(sp)
+  LD x16, 128(sp)
+  LD x17, 120(sp)
+  LD x18, 112(sp)
+  LD x19, 104(sp)
+  LD x20, 96(sp)
+  LD x21, 88(sp)
+  LD x22, 80(sp)
+  LD x23, 72(sp)
+  LD x24, 64(sp)
+  LD x25, 56(sp)
+  LD x26, 48(sp)
+  LD x27, 40(sp)
+  LD x28, 32(sp)
+  LD x29, 24(sp)
+  LD x30, 16(sp)
+  LD x31, 8(sp)
+  ADDI sp, sp, 224
   RET
 
 .global mambo_gp_tp_context_switch
 mambo_gp_tp_context_switch:
   # Switch register values of gp and tp with shadow values
+  # param a0: If set, gp and tp are set to mambo context
   C.ADDI sp, -16
   SD t0, 8(sp)
   SD t1, 0(sp)
 
+  # Check context status
+  LD t0, gp_tp_mambo_ctx_ptr
+  LW t1, 0(t0)
+  BEQ a0, t1, 1f                # If context status is equal to requested context
+
+  XORI t1, t1, 1                # Toggle context status
+  SW t1, 0(t0)
   LD t0, gp_shadow_ptr
   LD t1, 0(t0)
   SD gp, 0(t0)
@@ -129,6 +144,7 @@ mambo_gp_tp_context_switch:
   SD tp, 0(t0)
   MV tp, t1
 
+1:
   LD t0, 8(sp)
   LD t1, 0(sp)
   C.ADDI sp, 16
@@ -162,6 +178,7 @@ dbm_client_entry:
 #ifdef DBM_ARCH_RISCV64
 dbm_client_entry:
   MV sp, a1
+  # Store gp and tp of MAMBO context
   LD t0, gp_shadow_ptr
   SD gp, 0(t0)
   LD t0, tp_shadow_ptr
@@ -393,8 +410,8 @@ sigret:
 #ifdef DBM_ARCH_RISCV64
   C.ADDI sp, -24
   SD ra, 0(sp)
-  SD a0, 8(sp)
-  SD a1, 16(sp)
+  SD a1, 8(sp)
+  SD a0, 16(sp)
   JAL push_gen_regs
   JAL push_fp_regs
   JAL signal_dispatcher
@@ -404,9 +421,14 @@ sigret:
   C.ADDI sp, 8
 
   BEQZ a0, sigret
-
+  
   JR a0
 sigret:
+  # Store client gp and tp in shadow regs because sigreturn restores the mambo context
+  # and when it does that, we want the client values in the shadow registers (otherwise
+  # we would loose them)
+  LI a0, 1        # a0 is not used for the syscall, so no store/restore required
+  JAL mambo_gp_tp_context_switch
   C.ADDI sp, 16
   LI a7, __NR_rt_sigreturn
   ECALL
@@ -538,66 +560,73 @@ push_all_but_params:
    */
   # Move sp first, so that compressed instructions can be used
   # (SD replaced with C.SDSP by assembler)
-  ADDI    sp, sp, -168
-  SD      x3, 0(sp)
-  SD      x4, 8(sp)
-  SD      x5, 16(sp)
-  SD      x6, 24(sp)
-  SD      x7, 32(sp)
-  SD      x8, 40(sp)
-  SD      x9, 48(sp)
-  SD      x18, 56(sp)
-  SD      x19, 64(sp)
-  SD      x20, 72(sp)
-  SD      x21, 80(sp)
-  SD      x22, 88(sp)
-  SD      x23, 96(sp)
-  SD      x24, 104(sp)
-  SD      x25, 112(sp)
-  SD      x26, 120(sp)
-  SD      x27, 128(sp)
-  SD      x28, 136(sp)
-  SD      x29, 144(sp)
-  SD      x30, 152(sp)
-  SD      x31, 160(sp)
-  # Load gp of MAMBO context
-  LD gp, gp_shadow_ptr
-  LD gp, 0(gp)
-  LD tp, tp_shadow_ptr
-  LD tp, 0(tp)
+  ADDI    sp, sp, -176
+  SD      x3, 8(sp)
+  SD      x4, 16(sp)
+  SD      x5, 24(sp)
+  SD      x6, 32(sp)
+  SD      x7, 40(sp)
+  SD      x8, 48(sp)
+  SD      x9, 56(sp)
+  SD      x18, 64(sp)
+  SD      x19, 72(sp)
+  SD      x20, 80(sp)
+  SD      x21, 88(sp)
+  SD      x22, 96(sp)
+  SD      x23, 104(sp)
+  SD      x24, 112(sp)
+  SD      x25, 120(sp)
+  SD      x26, 128(sp)
+  SD      x27, 136(sp)
+  SD      x28, 144(sp)
+  SD      x29, 152(sp)
+  SD      x30, 160(sp)
+  SD      x31, 168(sp)
+  # Load gp and tp of MAMBO context and store the client gp and tp
+  MV s0, ra
+  SD a0, 0(sp)
+  LI a0, 1
+  JAL mambo_gp_tp_context_switch
+  MV ra, s0
+  LD a0, 0(sp)
+  LD s0, 176(sp)
+  ADDI sp, sp, 8
   RET
 
 pop_all_but_params:
   /*
    * Pop all registers but the function argument registers and sp and ra (x3-x9, x18-x31).
    */
-  # Store gp of MAMBO context
-  LD t0, gp_shadow_ptr
-  SD gp, 0(t0)
-  LD t0, tp_shadow_ptr
-  SD tp, 0(t0)
-  LD      x3, 0(sp)
-  LD      x4, 8(sp)
-  LD      x5, 16(sp)
-  LD      x6, 24(sp)
-  LD      x7, 32(sp)
-  LD      x8, 40(sp)
-  LD      x9, 48(sp)
-  LD      x18, 56(sp)
-  LD      x19, 64(sp)
-  LD      x20, 72(sp)
-  LD      x21, 80(sp)
-  LD      x22, 88(sp)
-  LD      x23, 96(sp)
-  LD      x24, 104(sp)
-  LD      x25, 112(sp)
-  LD      x26, 120(sp)
-  LD      x27, 128(sp)
-  LD      x28, 136(sp)
-  LD      x29, 144(sp)
-  LD      x30, 152(sp)
-  LD      x31, 160(sp)
-  ADDI    sp, sp, 168
+  # Store gp and tp of MAMBO context and load the client gp and tp
+  MV s0, ra
+  ADDI sp, sp, -8
+  SD a0, 0(sp)
+  MV a0, zero
+  JAL mambo_gp_tp_context_switch
+  LD a0, 0(sp)
+  MV ra, s0
+  # LD      x3, 8(sp)
+  # LD      x4, 16(sp)
+  LD      x5, 24(sp)
+  LD      x6, 32(sp)
+  LD      x7, 40(sp)
+  LD      x8, 48(sp)
+  LD      x9, 56(sp)
+  LD      x18, 64(sp)
+  LD      x19, 72(sp)
+  LD      x20, 80(sp)
+  LD      x21, 88(sp)
+  LD      x22, 96(sp)
+  LD      x23, 104(sp)
+  LD      x24, 112(sp)
+  LD      x25, 120(sp)
+  LD      x26, 128(sp)
+  LD      x27, 136(sp)
+  LD      x28, 144(sp)
+  LD      x29, 152(sp)
+  LD      x30, 160(sp)
+  LD      x31, 168(sp)
+  ADDI    sp, sp, 176
   RET
 #endif
 
@@ -725,6 +754,9 @@ __try_memcpy_error:
 #endif
 
 .data
+.global gp_tp_mambo_ctx_ptr
+gp_tp_mambo_ctx_ptr: .dword 0
+
 .global gp_shadow_ptr
 gp_shadow_ptr: .dword 0
 

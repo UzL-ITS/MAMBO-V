@@ -65,6 +65,7 @@
 #define syscall_wrapper_offset        ((uintptr_t)syscall_wrapper - (uintptr_t)&start_of_dispatcher_s)
 #define trace_head_incr_offset        ((uintptr_t)trace_head_incr - (uintptr_t)&start_of_dispatcher_s)
 #ifdef DBM_ARCH_RISCV64
+  #define gp_tp_mambo_ctx_offset        ((uintptr_t)&gp_tp_mambo_ctx - (uintptr_t)&start_of_dispatcher_s)
   #define gp_shadow_offset              ((uintptr_t)&gp_shadow - (uintptr_t)&start_of_dispatcher_s)
   #define tp_shadow_offset              ((uintptr_t)&tp_shadow - (uintptr_t)&start_of_dispatcher_s)
 #endif
@@ -742,6 +743,7 @@ void main(int argc, char **argv, char **envp) {
   debug("Address of first basic block is: 0x%x\n", block_address);
 
 #ifdef DBM_ARCH_RISCV64
+  gp_tp_mambo_ctx_ptr = (uintptr_t)&thread_data->code_cache[0] + gp_tp_mambo_ctx_offset;
   gp_shadow_ptr = (uintptr_t)&thread_data->code_cache[0] + gp_shadow_offset;
   tp_shadow_ptr = (uintptr_t)&thread_data->code_cache[0] + tp_shadow_offset;
 #endif
