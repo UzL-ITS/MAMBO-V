@@ -80,8 +80,9 @@ void *dbm_start_thread_pth(void *ptr, void *mambo_sp) {
 #ifdef DBM_ARCH_RISCV64
   uint64_t *child_stack = thread_data->clone_args->child_stack;
   /*
+   * // TODO: Rewrite for multithread support
    * The `args` pointer passed to `syscall_handler_pre` points to the saved value of x10
-   * saved by push_x1_x31_full. Hence `args - 9` points to the value of x1 and `args + 21`
+   * saved by push_volatile_syscall. Hence `args - 9` points to the value of x1 and `args + 21`
    * to x31 accordingly. `dbm_create_thread` sets `thread_data->clone_args` to `args`
    * before `dbm_start_thread_pth` is called, so the above also holds for 
    * `thread_data->clone_args - 9` up to `thread_data->clone_args + 21`.
@@ -200,7 +201,7 @@ int syscall_handler_pre(uintptr_t syscall_no, uintptr_t *args, uint16_t *next_in
   int do_syscall = 1;
   sys_clone_args *clone_args;
 #ifdef DBM_ARCH_RISCV64
-  uintptr_t *parent_stack = args - 8;
+  uintptr_t *parent_stack = args - 4;
 #else
   uintptr_t *parent_stack = args;
 #endif
@@ -447,7 +448,7 @@ int syscall_handler_pre(uintptr_t syscall_no, uintptr_t *args, uint16_t *next_in
 #elif __aarch64__
       app_sp += 64 + 144;
 #elif DBM_ARCH_RISCV64
-      app_sp += 248;
+      app_sp += 20 * 8;     // +3 pushed by scanner +17 push_volatile_syscall
 #endif
       ucontext_t *cont = (ucontext_t *)(app_sp + sizeof(siginfo_t));
       sigret_dispatcher_call(thread_data, cont, cont->context_pc);

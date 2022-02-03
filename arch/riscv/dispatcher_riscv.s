@@ -2,8 +2,9 @@
 start_of_dispatcher_s:
 
 gp_tp_context_switch:
-        # Switch register values of gp and tp with shadow values
-        # param a0: If set, gp and tp are set to mambo context
+        /* Switch register values of gp and tp with shadow values
+         * param a0: If set, gp and tp are set to mambo context
+         */
         ADDI    sp, sp, -16
         SD      t0, 8(sp)
         SD      t1, 0(sp)
@@ -27,271 +28,179 @@ gp_tp_context_switch:
         ADDI    sp, sp, 16
         RET
 
-.global push_x1_x31
-push_x1_x31:
+.global push_volatile
+push_volatile:
         /*
-         * Push general purpose registers 
-         * x1 to x31 exept for x2 (sp), x1 (ra), x10 and x11
-         * NOTE: You may want to also push ra before the subroutine.
+         * Push volatile registers: x5-x7, x12-x18, x28-x31
+         * (x10 and x11 are expected to be pushed by the translation before)
          */
         # Move sp first, so that compressed instructions can be used
         # (SD replaced with C.SDSP by assembler)
-        ADDI    sp, sp, -224
-        SD      x3, 216(sp)
-        SD      x4, 208(sp)
-        SD      x5, 200(sp)
-        SD      x6, 192(sp)
-        SD      x7, 184(sp)
-        SD      x8, 176(sp)
-        SD      x9, 168(sp)
-        SD      x12, 160(sp)
-        SD      x13, 152(sp)
-        SD      x14, 144(sp)
-        SD      x15, 136(sp)
-        SD      x16, 128(sp)
-        SD      x17, 120(sp)
-        SD      x18, 112(sp)
-        SD      x19, 104(sp)
-        SD      x20, 96(sp)
-        SD      x21, 88(sp)
-        SD      x22, 80(sp)
-        SD      x23, 72(sp)
-        SD      x24, 64(sp)
-        SD      x25, 56(sp)
-        SD      x26, 48(sp)
-        SD      x27, 40(sp)
+        ADDI    sp, sp, -112
+        SD      x5, 104(sp)
+        SD      x6, 96(sp)
+        SD      x7, 88(sp)
+        SD      x12, 80(sp)
+        SD      x13, 72(sp)
+        SD      x14, 64(sp)
+        SD      x15, 56(sp)
+        SD      x16, 48(sp)
+        SD      x17, 40(sp)
         SD      x28, 32(sp)
         SD      x29, 24(sp)
         SD      x30, 16(sp)
         SD      x31, 8(sp)
         # Load gp and tp of MAMBO context and store the client gp and tp
-        MV      s0, ra
+        MV      t3, ra
         SD      a0, 0(sp)
         LI      a0, 1
         JAL     gp_tp_context_switch
         LD      a0, 0(sp)
-        MV      ra, s0
-        LD      s0, 176(sp)
+        MV      ra, t3
+        LD      t3, 32(sp)
         ADDI    sp, sp, 8
         RET
 
-.global pop_x1_x31
-pop_x1_x31:
+.global pop_volatile
+pop_volatile:
         /*
-         * Pop general purpose registers 
-         * x1 to x31 exept for x2 (sp), x1 (ra), x10 and x11
-         * NOTE: You may want to also pop ra after the subroutine.
+         * Pop volatile registers: x5-x7, x12-x18, x28-x31
+         * (x10 and x11 are expected to be popped by the translation later)
          */
         # Store gp and tp of MAMBO context and load the client gp and tp
-        MV s0, ra
+        MV t3, ra
         ADDI sp, sp, -8
         SD a0, 0(sp)
         MV a0, zero
         JAL gp_tp_context_switch
         LD a0, 0(sp)
-        MV ra, s0
-        # LD      x3, 216(sp)
-        # LD      x4, 208(sp)
-        LD      x5, 200(sp)
-        LD      x6, 192(sp)
-        LD      x7, 184(sp)
-        LD      x8, 176(sp)
-        LD      x9, 168(sp)
-        LD      x12, 160(sp)
-        LD      x13, 152(sp)
-        LD      x14, 144(sp)
-        LD      x15, 136(sp)
-        LD      x16, 128(sp)
-        LD      x17, 120(sp)
-        LD      x18, 112(sp)
-        LD      x19, 104(sp)
-        LD      x20, 96(sp)
-        LD      x21, 88(sp)
-        LD      x22, 80(sp)
-        LD      x23, 72(sp)
-        LD      x24, 64(sp)
-        LD      x25, 56(sp)
-        LD      x26, 48(sp)
-        LD      x27, 40(sp)
+        MV ra, t3
+        LD      x5, 104(sp)
+        LD      x6, 96(sp)
+        LD      x7, 88(sp)
+        LD      x12, 80(sp)
+        LD      x13, 72(sp)
+        LD      x14, 64(sp)
+        LD      x15, 56(sp)
+        LD      x16, 48(sp)
+        LD      x17, 40(sp)
         LD      x28, 32(sp)
         LD      x29, 24(sp)
         LD      x30, 16(sp)
         LD      x31, 8(sp)
-        ADDI    sp, sp, 224
+        ADDI    sp, sp, 112
         RET
 
-push_x1_x31_full:
+push_volatile_syscall:
         /*
-         * Push general purpose registers. x1 to x31 saved apart from x2 (sp) and 
-         * x1 (ra) in ascending order.
-         * WARNING: Must be paired with `pop_x1_x31_full` not `pop_x1_x31`!
-         * NOTE: You may want to also push ra before the subroutine.
+         * Push volatile registers: x5-x7, x10-x18, x28-x31 and x8 (non-volatile)
+         * WARNING: Must be paired with `pop_volatile_syscall`!
+         * NOTE: This routine is specifically for use in `syscall_wrapper`, therefore
+         *      x8 is also pushed.
          */
         # Move sp first, so that compressed instructions can be used
         # (SD replaced with C.SDSP by assembler)
-        ADDI    sp, sp, -232
-        SD      x3, 0(sp)
-        SD      x4, 8(sp)
-        SD      x5, 16(sp)
-        SD      x6, 24(sp)
-        SD      x7, 32(sp)
-        SD      x8, 40(sp)
-        SD      x9, 48(sp)
-        SD      x10, 56(sp)
-        SD      x11, 64(sp)
-        SD      x12, 72(sp)
-        SD      x13, 80(sp)
-        SD      x14, 88(sp)
-        SD      x15, 96(sp)
-        SD      x16, 104(sp)
-        SD      x17, 112(sp)
-        SD      x18, 120(sp)
-        SD      x19, 128(sp)
-        SD      x20, 136(sp)
-        SD      x21, 144(sp)
-        SD      x22, 152(sp)
-        SD      x23, 160(sp)
-        SD      x24, 168(sp)
-        SD      x25, 176(sp)
-        SD      x26, 184(sp)
-        SD      x27, 192(sp)
-        SD      x28, 200(sp)
-        SD      x29, 208(sp)
-        SD      x30, 216(sp)
-        SD      x31, 224(sp)
+        ADDI    sp, sp, -136
+        SD      x5, 0(sp)
+        SD      x6, 8(sp)
+        SD      x7, 16(sp)
+        SD      x8, 24(sp)
+        SD      x10, 32(sp)
+        SD      x11, 40(sp)
+        SD      x12, 48(sp)
+        SD      x13, 56(sp)
+        SD      x14, 64(sp)
+        SD      x15, 72(sp)
+        SD      x16, 80(sp)
+        SD      x17, 88(sp)
+        SD      x18, 96(sp)
+        SD      x28, 104(sp)
+        SD      x29, 112(sp)
+        SD      x30, 120(sp)
+        SD      x31, 128(sp)
         # Load gp and tp of MAMBO context and store the client gp and tp
-        MV      s0, ra
+        MV      t3, ra
         LI      a0, 1
         JAL     gp_tp_context_switch
-        LD      a0, 56(sp)
-        MV      ra, s0
-        LD      s0, 40(sp)
+        LD      a0, 32(sp)
+        MV      ra, t3
+        LD      t3, 104(sp)
         RET
 
-pop_x1_x31_full:
+pop_volatile_syscall:
         /*
-         * Pop general purpose registers. x1 to x31 restored apart from x2 (sp) and 
-         * x1 (ra) in ascending order.
-         * WARNING: Must be paired with `push_x1_x31_full` not `push_x1_x31`!
-         * NOTE: You may want to also pop ra after the subroutine.
+         * Pop volatile registers: x5-x7, x10-x18, x28-x31 and x8 (non-volatile)
+         * WARNING: Must be paired with `push_volatile_syscall`!
+         * NOTE: This routine is specifically for use in `syscall_wrapper`, therefore
+         *      x8 is also popped.
          */
         # Store gp and tp of MAMBO context and load the client gp and tp
-        MV s0, ra
+        MV t3, ra
         MV a0, zero
         JAL gp_tp_context_switch
-        MV ra, s0
-        # LD      x3, 0(sp)
-        # LD      x4, 8(sp)
-        LD      x5, 16(sp)
-        LD      x6, 24(sp)
-        LD      x7, 32(sp)
-        LD      x8, 40(sp)
-        LD      x9, 48(sp)
-        LD      x10, 56(sp)
-        LD      x11, 64(sp)
-        LD      x12, 72(sp)
-        LD      x13, 80(sp)
-        LD      x14, 88(sp)
-        LD      x15, 96(sp)
-        LD      x16, 104(sp)
-        LD      x17, 112(sp)
-        LD      x18, 120(sp)
-        LD      x19, 128(sp)
-        LD      x20, 136(sp)
-        LD      x21, 144(sp)
-        LD      x22, 152(sp)
-        LD      x23, 160(sp)
-        LD      x24, 168(sp)
-        LD      x25, 176(sp)
-        LD      x26, 184(sp)
-        LD      x27, 192(sp)
-        LD      x28, 200(sp)
-        LD      x29, 208(sp)
-        LD      x30, 216(sp)
-        LD      x31, 224(sp)
-        ADDI    sp, sp, 232
+        MV ra, t3
+        LD      x5, 0(sp)
+        LD      x6, 8(sp)
+        LD      x7, 16(sp)
+        LD      x8, 24(sp)
+        LD      x10, 32(sp)
+        LD      x11, 40(sp)
+        LD      x12, 48(sp)
+        LD      x13, 56(sp)
+        LD      x14, 64(sp)
+        LD      x15, 72(sp)
+        LD      x16, 80(sp)
+        LD      x17, 88(sp)
+        LD      x18, 96(sp)
+        LD      x28, 104(sp)
+        LD      x29, 112(sp)
+        LD      x30, 120(sp)
+        LD      x31, 128(sp)
+        ADDI    sp, sp, 136
         RET
 
-.global push_fp_regs
-push_fp_regs:
+.global push_fp_volatile
+push_fp_volatile:
         /*
-         * Push all floating point registers (FLEN=64) and stores fcsr to x27 (s11).
+         * Push volatile floating point registers (FLEN=64) and stores fcsr to x27 (s11).
          */
-        ADDI    sp, sp, -256
-        FSD     f0, 248(sp)
-        FSD     f1, 240(sp)
-        FSD     f2, 232(sp)
-        FSD     f3, 224(sp)
-        FSD     f4, 216(sp)
-        FSD     f5, 208(sp)
-        FSD     f6, 200(sp)
-        FSD     f7, 192(sp)
-        FSD     f8, 184(sp)
-        FSD     f9, 176(sp)
-        FSD     f10, 168(sp)
-        FSD     f11, 160(sp)
-        FSD     f12, 152(sp)
-        FSD     f13, 144(sp)
-        FSD     f14, 136(sp)
-        FSD     f15, 128(sp)
-        FSD     f16, 120(sp)
-        FSD     f17, 112(sp)
-        FSD     f18, 104(sp)
-        FSD     f19, 96(sp)
-        FSD     f20, 88(sp)
-        FSD     f21, 80(sp)
-        FSD     f22, 72(sp)
-        FSD     f23, 64(sp)
-        FSD     f24, 56(sp)
-        FSD     f25, 48(sp)
-        FSD     f26, 40(sp)
-        FSD     f27, 32(sp)
-        FSD     f28, 24(sp)
-        FSD     f29, 16(sp)
-        FSD     f30, 8(sp)
-        FSD     f31, 0(sp)
+        ADDI    sp, sp, -104
+        FSD     f8, 96(sp)
+        FSD     f9, 88(sp)
+        FSD     f18, 80(sp)
+        FSD     f19, 72(sp)
+        FSD     f20, 64(sp)
+        FSD     f21, 56(sp)
+        FSD     f22, 48(sp)
+        FSD     f23, 40(sp)
+        FSD     f24, 32(sp)
+        FSD     f25, 24(sp)
+        FSD     f26, 16(sp)
+        FSD     f27, 8(sp)
+        SD      s11, 0(sp)
         FRCSR   s11
         RET
 
-.global pop_fp_regs
-pop_fp_regs:
+.global pop_fp_volatile
+pop_fp_volatile:
         /*
-         * Pop all floating point registers (FLEN=64) and restores fcsr from x27 (s11).
+         * Pop volatile floating point registers (FLEN=64) and restores fcsr from x27 (s11).
          */
         FSCSR   s11
-        FLD     f0, 248(sp)
-        FLD     f1, 240(sp)
-        FLD     f2, 232(sp)
-        FLD     f3, 224(sp)
-        FLD     f4, 216(sp)
-        FLD     f5, 208(sp)
-        FLD     f6, 200(sp)
-        FLD     f7, 192(sp)
-        FLD     f8, 184(sp)
-        FLD     f9, 176(sp)
-        FLD     f10, 168(sp)
-        FLD     f11, 160(sp)
-        FLD     f12, 152(sp)
-        FLD     f13, 144(sp)
-        FLD     f14, 136(sp)
-        FLD     f15, 128(sp)
-        FLD     f16, 120(sp)
-        FLD     f17, 112(sp)
-        FLD     f18, 104(sp)
-        FLD     f19, 96(sp)
-        FLD     f20, 88(sp)
-        FLD     f21, 80(sp)
-        FLD     f22, 72(sp)
-        FLD     f23, 64(sp)
-        FLD     f24, 56(sp)
-        FLD     f25, 48(sp)
-        FLD     f26, 40(sp)
-        FLD     f27, 32(sp)
-        FLD     f28, 24(sp)
-        FLD     f29, 16(sp)
-        FLD     f30, 8(sp)
-        FLD     f31, 0(sp)
-        ADDI    sp, sp, 256
+        LD      s11, 0(sp)
+        FLD     f8, 96(sp)
+        FLD     f9, 88(sp)
+        FLD     f18, 80(sp)
+        FLD     f19, 72(sp)
+        FLD     f20, 64(sp)
+        FLD     f21, 56(sp)
+        FLD     f22, 48(sp)
+        FLD     f23, 40(sp)
+        FLD     f24, 32(sp)
+        FLD     f25, 24(sp)
+        FLD     f26, 16(sp)
+        FLD     f27, 8(sp)
+        ADDI    sp, sp, 104
         RET
 
 .global dispatcher_trampoline
@@ -302,17 +211,17 @@ dispatcher_trampoline:
         C.ADDI  sp, -16                 # 24 byte allocated
         SD      ra, 0(sp)
         SD      x10, 16(sp)
-        JAL     push_x1_x31
-        JAL     push_fp_regs
+        JAL     push_volatile
+        JAL     push_fp_volatile
 
-        ADDI    x12, sp, 480            # param2: *next_addr (TCP)
+        ADDI    x12, sp, 216            # param2: *next_addr (TCP)
         LD      x13, disp_thread_data   # param3: dbm_thread *thread_data
 
-        LD      x18, dispatcher_addr    # Call very far-away function
-        JALR    ra, 0(x18)
+        LD      x14, dispatcher_addr    # Call very far-away function
+        JALR    ra, 0(x14)
 
-        JAL     pop_fp_regs
-        JAL     pop_x1_x31
+        JAL     pop_fp_volatile
+        JAL     pop_volatile
         LD      ra, 0(sp)
         LD      x10, 8(sp)              # param0: TCP (next_addr)
         LD      x11, 16(sp)             # param1: SPC (target)
@@ -330,12 +239,12 @@ disp_thread_data: .dword 0
 syscall_wrapper:
         LD      x9, 0(sp)              # Restore temp jump register
         SD      ra, 0(sp)
-        JAL     push_x1_x31_full
-        JAL     push_fp_regs
+        JAL     push_volatile_syscall
+        JAL     push_fp_volatile
 
         # Call pre syscall handler
         MV      x10, x17                # param0: syscall_no
-        ADDI    x11, sp, 312            # param1: *args
+        ADDI    x11, sp, 136            # param1: *args
         MV      x12, x8	                # param2: *next_inst (x8 set by scanner)
         LD      x13, disp_thread_data   # param3: dbm_thread *thread_data
         
@@ -345,20 +254,20 @@ syscall_wrapper:
         BEQZ    x10, s_w_r
 
         # Load syscall parameter registers
-        LD      x10, 312(sp)
-        LD      x11, 320(sp)
-        LD      x12, 328(sp)
-        LD      x13, 336(sp)
-        LD      x14, 344(sp)
-        LD      x15, 352(sp)
-        LD      x16, 360(sp)
+        LD      x10, 136(sp)
+        LD      x11, 144(sp)
+        LD      x12, 152(sp)
+        LD      x13, 160(sp)
+        LD      x14, 168(sp)
+        LD      x15, 176(sp)
+        LD      x16, 184(sp)
         # Also load syscall register because it may have changed (debug output)
-        LD      x17, 368(sp)
+        LD      x17, 192(sp)
 
         # Balance the stack on rt_sigreturn, which doesn't return here anymore
         LI      x28, 139
         BNE     x17, x28, svc
-        ADDI    sp, sp, (16 + 232 + 256)      # Additional 16 because scanner pushed x1 and x8
+        ADDI    sp, sp, (16 + 136 + 104)      # Additional 16 because scanner pushed x1 and x8
 
 svc:
         # Syscall
@@ -366,7 +275,7 @@ svc:
 
 syscall_wrapper_svc:
         # Call post syscall handler
-        ADDI    x11, sp, 312            # param1: *args
+        ADDI    x11, sp, 136            # param1: *args
         SD      x10, 0(x11)
         MV      x10, x17                # param0: syscall_no
         MV      x12, x8	                # param2: *next_inst (x8 set by scanner)
@@ -376,14 +285,14 @@ syscall_wrapper_svc:
         JALR    ra, 0(x18)
 
 s_w_r:
-        JAL     pop_fp_regs
-        JAL     pop_x1_x31_full
+        JAL     pop_fp_volatile
+        JAL     pop_volatile_syscall
         LD      x1, 16(sp)              # Restore x1 pushed by scanner
         LD      x8, 8(sp)               # Restore x8 pushed by scanner
         SD      x10, 16(sp)
         SD      x11, 8(sp)
         LD      x10, 0(sp)              # param0: TCP (x1 set by scanner)
-        LD      x11, -192(sp)           # param1: SPC (x8 set by scanner)
+        LD      x11, -96(sp)            # param1: SPC (x8 set by scanner)
         C.ADDI  sp, 8
 
         J       checked_cc_return
@@ -409,8 +318,8 @@ deliver_signals_trampoline:
         MV      x10, x11                # param0: SPC (target)
         MV      x11, sp	                # param1: self_signal *
         C.ADDI  x11, 8                  # 0(sp) is saved ra, self_signal starts at 8(sp)
-        JAL     push_x1_x31
-        JAL     push_fp_regs
+        JAL     push_volatile
+        JAL     push_fp_volatile
 
         LI      x12, 0xd6db             # param2: sigmask TODO: Why should SCP be 0xd6db?
         BEQ     x10, x12, .             # loop if SPC (target) == 0xd6db
@@ -418,8 +327,8 @@ deliver_signals_trampoline:
         LD      x18, deliver_signals_addr       # Call very far-away function
         JALR    ra, 0(x18)
 
-        JAL     pop_fp_regs
-        JAL     pop_x1_x31
+        JAL     pop_fp_volatile
+        JAL     pop_volatile
         LD      ra, 0(sp)
         C.ADDI  sp, 8
 

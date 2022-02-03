@@ -27,103 +27,74 @@
 #include <asm/unistd.h>
 
 #ifdef DBM_ARCH_RISCV64
-.global push_gen_regs
-push_gen_regs:
+.global push_volatile_regs
+push_volatile_regs:
   /*
-   * Push general purpose registers 
-   * x1 to x31 exept for x2 (sp), x1 (ra), x10 and x11
-   * NOTE: You may want to also push ra before the subroutine.
+   * Push volatile registers: x5-x7, x12-x18, x28-x31
+   * (x10 and x11 are expected to be pushed by the translation before)
    */
   # Move sp first, so that compressed instructions can be used
   # (SD replaced with C.SDSP by assembler)
-  ADDI sp, sp, -224
-  SD x3, 224(sp)
-  SD x4, 208(sp)
-  SD x5, 200(sp)
-  SD x6, 192(sp)
-  SD x7, 184(sp)
-  SD x8, 176(sp)
-  SD x9, 168(sp)
-  SD x12, 160(sp)
-  SD x13, 152(sp)
-  SD x14, 144(sp)
-  SD x15, 136(sp)
-  SD x16, 128(sp)
-  SD x17, 120(sp)
-  SD x18, 112(sp)
-  SD x19, 104(sp)
-  SD x20, 96(sp)
-  SD x21, 88(sp)
-  SD x22, 80(sp)
-  SD x23, 72(sp)
-  SD x24, 64(sp)
-  SD x25, 56(sp)
-  SD x26, 48(sp)
-  SD x27, 40(sp)
+  ADDI sp, sp, -112
+  SD x5, 104(sp)
+  SD x6, 96(sp)
+  SD x7, 88(sp)
+  SD x12, 80(sp)
+  SD x13, 72(sp)
+  SD x14, 64(sp)
+  SD x15, 56(sp)
+  SD x16, 48(sp)
+  SD x17, 40(sp)
   SD x28, 32(sp)
   SD x29, 24(sp)
   SD x30, 16(sp)
   SD x31, 8(sp)
   # Load gp and tp of MAMBO context and store the client gp and tp
-  MV s0, ra
+  MV t3, ra
   SD a0, 0(sp)
   LI a0, 1
   JAL mambo_gp_tp_context_switch
   LD a0, 0(sp)
-  MV ra, s0
-  LD s0, 176(sp)
+  MV ra, t3
+  LD t3, 32(sp)
   ADDI sp, sp, 8
   RET
 
-.global pop_gen_regs
-pop_gen_regs:
+.global pop_volatile_regs
+pop_volatile_regs:
   /*
-   * Pop general purpose registers 
-   * x1 to x31 exept for x2 (sp), x1 (ra), x10 and x11
-   * NOTE: You may want to also pop ra after the subroutine.
+   * Pop volatile registers: x5-x7, x12-x18, x28-x31
+   * (x10 and x11 are expected to be popped by the translation later)
    */
   # Store gp and tp of MAMBO context and load the client gp and tp
-  MV s0, ra
+  MV t3, ra
   ADDI sp, sp, -8
   SD a0, 0(sp)
   MV a0, zero
   JAL mambo_gp_tp_context_switch
   LD a0, 0(sp)
-  MV ra, s0
-  # LD x3, 216(sp)
-  # LD x4, 208(sp)
-  LD x5, 200(sp)
-  LD x6, 192(sp)
-  LD x7, 184(sp)
-  LD x8, 176(sp)
-  LD x9, 168(sp)
-  LD x12, 160(sp)
-  LD x13, 152(sp)
-  LD x14, 144(sp)
-  LD x15, 136(sp)
-  LD x16, 128(sp)
-  LD x17, 120(sp)
-  LD x18, 112(sp)
-  LD x19, 104(sp)
-  LD x20, 96(sp)
-  LD x21, 88(sp)
-  LD x22, 80(sp)
-  LD x23, 72(sp)
-  LD x24, 64(sp)
-  LD x25, 56(sp)
-  LD x26, 48(sp)
-  LD x27, 40(sp)
+  MV ra, t3
+  LD x5, 104(sp)
+  LD x6, 96(sp)
+  LD x7, 88(sp)
+  LD x12, 80(sp)
+  LD x13, 72(sp)
+  LD x14, 64(sp)
+  LD x15, 56(sp)
+  LD x16, 48(sp)
+  LD x17, 40(sp)
   LD x28, 32(sp)
   LD x29, 24(sp)
   LD x30, 16(sp)
   LD x31, 8(sp)
-  ADDI sp, sp, 224
+  ADDI sp, sp, 112
   RET
 
 .global mambo_gp_tp_context_switch
 mambo_gp_tp_context_switch:
-  # Switch register values of gp and tp with shadow values
-  # param a0: If set, gp and tp are set to mambo context
+  /* Switch register values of gp and tp with shadow values
+   * param a0: If set, gp and tp are set to mambo context
+   */
   C.ADDI sp, -16
   SD t0, 8(sp)
   SD t1, 0(sp)
@@ -283,7 +254,7 @@ new_thread_trampoline:
   B dbm_start_thread_pth
 #elif DBM_ARCH_RISCV64
   # Save registers as part of the standard calling convention
-  JAL push_gen_regs
+  JAL push_volatile_regs
   MV a1, sp
   J dbm_start_thread_pth
 #endif
@@ -308,7 +279,7 @@ return_with_sp:
 #elif DBM_ARCH_RISCV64
   MV sp, a0
   # Restore registers as part of the standard calling convention
-  JAL pop_gen_regs
+  JAL pop_volatile_regs
   RET
 #endif
 .endfunc
@@ -412,11 +383,11 @@ sigret:
   SD ra, 0(sp)
   SD a1, 8(sp)
   SD a0, 16(sp)
-  JAL push_gen_regs
-  JAL push_fp_regs
+  JAL push_volatile_regs
+  JAL push_fp_volatile
   JAL signal_dispatcher
-  JAL pop_fp_regs
-  JAL pop_gen_regs
+  JAL pop_fp_volatile
+  JAL pop_volatile_regs
   LD ra, 0(sp)
   C.ADDI sp, 8
 
@@ -697,9 +668,9 @@ safe_fcall_trampoline:
   C.ADDI sp, -8
   SD ra, 0(sp)
   JAL push_all_but_params
-  JAL push_fp_regs
+  JAL push_fp_volatile
   JALR x18          # function pointer
-  JAL pop_fp_regs
+  JAL pop_fp_volatile
   JAL pop_all_but_params
   LD ra, 0(sp)
   C.ADDI sp, 8

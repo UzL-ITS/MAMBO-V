@@ -465,15 +465,15 @@ void translate_svc_frame(ucontext_t *cont) {
   sp += 26;
 #elif DBM_ARCH_RISCV64
   sp += 256 / sizeof(sp[0]);
-  for (int x = 5; x <= 9; x++) {
-    cont->context_reg(x) = sp[x-3];
+  for (int x = 5; x <= 7; x++) {
+    cont->context_reg(x) = sp[x-5];
   }
-  for (int x = 19; x <= 31; x++) {
-    cont->context_reg(x) = sp[x-3];
+  for (int x = 12; x <= 15; x++) { // restore x28 - x31
+    cont->context_reg(x) = sp[x];
   }
-  cont->pc_field = sp[8-3]; // Get SPC from x8
-  cont->context_reg(x8) = sp[30];
-  cont->context_reg(x1) = sp[31];
+  cont->pc_field = sp[3]; // Get SPC from x8
+  cont->context_reg(x8) = sp[16];
+  cont->context_reg(x1) = sp[17];
   sp += 32;
   debug("context restored sp: 0x%lx\n", sp);
   debug("context pc: 0x%lx\n", cont->pc_field);
