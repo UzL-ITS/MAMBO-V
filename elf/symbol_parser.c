@@ -110,6 +110,36 @@ int get_symbol_info_by_addr(uintptr_t addr, char **sym_name, void **start_addr, 
   return 0;
 }
 
+int get_image_info_by_addr(uintptr_t addr, void **start_addr, void **end_addr, char **filename)
+{
+  interval_map_entry fm;
+  int ret = interval_map_search_by_addr(&global_data.exec_allocs, addr, &fm);
+
+  if (ret != 1 || fm.fd < 0) return -1;
+
+  if (start_addr)
+    *start_addr = (void *)fm.start;
+
+  if (end_addr)
+    *end_addr = (void *)fm.end;
+
+  if (filename) {
+    const size_t buf_proc_size = 30;
+    char buf_proc[buf_proc_size];
+    const size_t buf_path_size = PATH_MAX + 1;
+    char buf_path[buf_path_size];
+    ret = snprintf(buf_proc, buf_proc_size, "/proc/self/fd/%d", fm.fd);
+    assert(ret > 0);
+    ret = readlink(buf_proc, buf_path, buf_path_size-1);
+    assert(ret > 0);
+    buf_path[ret] = '\0';
+    *filename = strdup(buf_path);
+    assert(*filename != NULL);
+  }
+
+  return 0;
+}
+
 
 stack_frame_t *get_frame(stack_frame_t *frame) {
   void *fp = frame;

@@ -542,7 +542,11 @@ void emit_mov(mambo_context *ctx, enum reg rd, enum reg rn) {
     emit_a64_logical_reg(ctx, 1, 1, 0, 0, rn, 0, 0x1F, rd);
   }
 #elif DBM_ARCH_RISCV64
-  emit_riscv_c_mv(ctx, rd, rn);
+  // Compressed move instruction only legal if operands != 0
+  if (rd != 0 && rn != 0)
+    emit_riscv_c_mv(ctx, rd, rn);
+  else
+    emit_riscv_add(ctx, rd, rn, zero);
 #endif
 }
 

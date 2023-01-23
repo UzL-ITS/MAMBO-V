@@ -1,18 +1,3 @@
-/*
-This program is a lightweight wrapper for the investigated library.
-In trace mode (using Pin) it periodically reads test input file names from stdin and loads the given testcases.
-
-Note: If the target library is written in C++ and exports mangled names, this program should also be compiled as C++ so it can find those exports.
-      If the target library is written in C, do not forget to use `extern "C"` when including the headers.
-     
-Some functions have _EXPORT annotations, even though they are not used externally. This ensures that the function name is included in the binary,
-which helps reading the resulting call tree.
-*/
-
-// Switch for benchmarking code.
-// Uncommenting this enables a target which is designed to generate large traces, which take a long preprocessing and analysis time.
-//#define BENCHMARK
-
 /* INCLUDES */
 
 // OS-specific imports and helper macros
@@ -35,16 +20,10 @@ which helps reading the resulting call tree.
     #include <sys/resource.h>
 #endif
 
-// *** TODO REFERENCE INVESTIGATED LIBRARY [
-#if defined(BENCHMARK)
-
-#elif defined(_WIN32)
-    #pragma comment(lib, "bcrypt.lib")
-    #include <bcrypt.h>
-#else
-    #include <openssl/evp.h>
-#endif
-// ] ***
+// OpenSSL includes
+#include <openssl/rsa.h>
+#include <openssl/pem.h>
+#include <openssl/err.h>
 
 // Standard includes
 #include <cstdint>
@@ -70,41 +49,10 @@ which helps reading the resulting call tree.
 /* FUNCTIONS */
 
 // Performs target initialization steps.
-// This function is called once in the very beginning, to make sure that the target is entirely loaded.
-// The call is included into the trace prefix.
+// This function is called once in the very beginning, to make sure that the target is entirely loaded, and incorporated into the trace prefix.
 _EXPORT _NOINLINE void InitTarget()
 {
-	// *** TODO INSERT THE TARGET INITIALIZATION CODE HERE [
-	
-    // Simple targets for testing
-#if defined(BENCHMARK)
-
-#elif defined(_WIN32)
-	BCRYPT_ALG_HANDLE dummy;
-	BCryptOpenAlgorithmProvider(&dummy, BCRYPT_AES_ALGORITHM, nullptr, 0);
-	BCryptCloseAlgorithmProvider(dummy, 0);
-#else
-    // Run a the full target procedure becuase the dynamic linker evaluates PLT entries lazily.
-    // All bindings to external functions will be resolved and subsequent calls to them behave always in the same way.
-    // https://refspecs.linuxfoundation.org/ELF/zSeries/lzsabi0_zSeries/x2251.html
-    uint8_t secret_key[16] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
-    uint8_t plain[16] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
-
-    fread(NULL, 0, 0, NULL); // also resolve fread PLT entry
-
-    EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
-    EVP_EncryptInit_ex(ctx, EVP_aes_128_cbc(), nullptr, secret_key, nullptr);
-
-    uint8_t cipher[16];
-    int len;
-    EVP_EncryptUpdate(ctx, cipher, &len, plain, 16);
-
-    EVP_CIPHER_CTX_free(ctx);
-
-    //BIO_dump_fp(stderr, reinterpret_cast<const char *>(cipher), 16);
-#endif
-	
-    // ] ***
+	// Nothing to do here
 }
 
 // Executes the target function.
@@ -112,67 +60,13 @@ _EXPORT _NOINLINE void InitTarget()
 // Do not use global variables, since the fuzzer might reuse the instrumented version of this executable for several different inputs.
 _EXPORT _NOINLINE void RunTarget(FILE* input)
 {
-    // *** TODO INSERT THE LIBRARY CALLING CODE HERE [
-    
-    // Simple targets for testing
-#if defined(BENCHMARK)
+    RSA *rsa = PEM_read_RSAPrivateKey(input, nullptr, nullptr, nullptr);
+	if(rsa == nullptr)
+		ERR_print_errors_fp(stderr);
 
-    uint8_t data[32];
-    if(fread(data, 1, 32, input) != 32)
-        return;
-
-    int* buffer = static_cast<int *>(calloc(256, sizeof(int)));
-    for(int i = 0; i < 1024 * 256; ++i)
-        buffer[data[i % 32]] = i;
-
-#elif defined(_WIN32)
-	BYTE secret_key[16];
-	if(fread(secret_key, 1, 16, input) != 16)
-		return;
-
-	BYTE plain[16];
-	if(fread(plain, 1, 16, input) != 16)
-		return;
-
-	BCRYPT_ALG_HANDLE aesAlg;
-	BCRYPT_KEY_HANDLE aesKey;
-	BCryptOpenAlgorithmProvider(&aesAlg, BCRYPT_AES_ALGORITHM, nullptr, 0);
-	DWORD keyObjectSize;
-	DWORD data;
-	BCryptGetProperty(aesAlg, BCRYPT_OBJECT_LENGTH, reinterpret_cast<PUCHAR>(&keyObjectSize), sizeof(DWORD), &data, 0);
-
-	BYTE* keyObj = static_cast<BYTE*>(malloc(keyObjectSize));
-	DWORD blockLength;
-	BCryptGetProperty(aesAlg, BCRYPT_BLOCK_LENGTH, reinterpret_cast<PUCHAR>(&blockLength), sizeof(DWORD), &data, 0);
-	BCryptSetProperty(aesAlg, BCRYPT_CHAINING_MODE, PUCHAR(BCRYPT_CHAIN_MODE_ECB), sizeof(BCRYPT_CHAIN_MODE_ECB), 0);
-	BCryptGenerateSymmetricKey(aesAlg, &aesKey, keyObj, keyObjectSize, static_cast<PUCHAR>(secret_key), sizeof(secret_key), 0);
-
-	DWORD cipherTextSize;
-	BCryptEncrypt(aesKey, plain, sizeof(plain), nullptr, nullptr, 0, nullptr, 0, &cipherTextSize, 0);
-	BYTE* cipherText = static_cast<BYTE*>(malloc(cipherTextSize));
-	BCryptEncrypt(aesKey, plain, sizeof(plain), nullptr, nullptr, 0, cipherText, cipherTextSize, &data, 0);
-#else
-    uint8_t secret_key[16];
-    if(fread(secret_key, 1, 16, input) != 16)
-        return;
-
-    uint8_t plain[16];
-    if(fread(plain, 1, 16, input) != 16)
-        return;
-
-    EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
-    EVP_EncryptInit_ex(ctx, EVP_aes_128_cbc(), nullptr, secret_key, nullptr);
-
-    uint8_t cipher[16];
-    int len;
-    EVP_EncryptUpdate(ctx, cipher, &len, plain, 16);
-
-    EVP_CIPHER_CTX_free(ctx);
-
-    //BIO_dump_fp(stderr, reinterpret_cast<const char *>(cipher), 16);
-#endif
+	// ...computations ...
 	
-    // ] ***
+	RSA_free(rsa);
 }
 
 // Pin notification functions.
@@ -215,7 +109,7 @@ _EXPORT void ReadAndSendStackPointer()
     }
 
     uint64_t stackMin = reinterpret_cast<uint64_t>(stackBase) - reinterpret_cast<uint64_t>(stackLimit.rlim_cur);
-    uint64_t stackMax = (reinterpret_cast<uint64_t>(stackBase) + 0x10000) & ~0xFFFFull; // Round to next higher multiple of 64 kB (should be safe on x86 systems)
+    uint64_t stackMax = (reinterpret_cast<uint64_t>(stackBase) + 0x10000) & ~0x10000ull; // Round to next higher multiple of 64 kB (should be safe on x86 systems)
     PinNotifyStackPointer(stackMin, stackMax);
 #endif
 }
