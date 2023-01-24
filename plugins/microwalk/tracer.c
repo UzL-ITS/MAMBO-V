@@ -18,7 +18,9 @@
 	#define debug(...)
 #endif
 
-#define INTERESTING_IMG_NR 2
+#define MAX_INTERESTING_IMG_COUNT 10
+#define MAX_INTERESTING_IMG_LENGTH 100
+#define INTERESTING_IMAGE_SEPERATOR ","
 
 // Tracer options
 const bool enable_stack_allocation_tracking = true;
@@ -27,11 +29,9 @@ const bool enable_stack_allocation_tracking = true;
 char notify_testcase_start_name[] = "PinNotifyTestcaseStart";
 char notify_testcase_end_name[] = "PinNotifyTestcaseEnd";
 char notify_stack_pointer_name[] = "PinNotifyStackPointer";
-char *interesting_images[INTERESTING_IMG_NR] = { // Must be absolute paths
-	"/home/root/wrapper",
-	"/usr/lib/libcrypto.so.1.1"
-};
-const int interesting_images_count = INTERESTING_IMG_NR;
+
+char interesting_images[MAX_INTERESTING_IMG_COUNT][MAX_INTERESTING_IMG_LENGTH];
+int interesting_images_count = 0;
 
 
 TraceEntry *entry_buffer_next;
@@ -237,6 +237,37 @@ int trace_free_pre_fn_handler(mambo_context *ctx)
 int trace_free_post_fn_handler(mambo_context *ctx) {}
 
 
+/**
+ * Parses image paths from tokenstring.
+ */
+void parse_images_list(char *tokenstring)
+{
+	char sep[] = INTERESTING_IMAGE_SEPERATOR;
+	char *token = strtok(tokenstring, sep);
+	for (size_t i = 0; i < MAX_INTERESTING_IMG_COUNT && token != NULL; i++)
+	{
+		strcpy(interesting_images[i], token);
+		interesting_images_count++;
+		debug("[tracer] Image path added: %s\n", interesting_images[i]);
+
+		token = strtok(NULL, sep);
+	}
+}
+
+/**
+ * Parses passed image paths from argument list.
+ * @param argv_index Index of argument
+*/
+void get_images_list(int argv_index) 
+{
+	if (global_data.argc < 3) {
+		fprintf(stderr, "Warning: Empty image whitelist! You may have forgotten to pass the interesting image paths.\n");
+		return;
+	}
+
+	parse_images_list(global_data.argv[argv_index]);
+}
+
 int tracer_vm_op_handler(mambo_context *ctx)
 {
 	// Initialize the tracer write as early as possible
@@ -244,6 +275,9 @@ int tracer_vm_op_handler(mambo_context *ctx)
 		trace_writer = TraceWriter_new("");
 		TraceWriter_InitPrefixMode("");
 	}
+
+	if (interesting_images_count == 0)
+		get_images_list(2);
 
 	if (mambo_get_vm_op(ctx) == VM_MAP) {
 		void *start_address;
