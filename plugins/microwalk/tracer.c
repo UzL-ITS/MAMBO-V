@@ -384,7 +384,38 @@ int tracer_pre_inst_handler(mambo_context *ctx)
 
 		tracer_write_end_trace_instrumentation(ctx);
 
-	} else if (branch_type & BRANCH_DIRECT) {
+	} 
+	
+	/*
+	 * NOTE: Microwalk analysis wants to know when a function is called and when
+	 * it returns. In RISC-V we don't have "call" and "ret" instructions like on
+	 * x86(_64), but call and return operations are usually translated into one of
+	 * the following instructions:
+	 * 
+	 * A call is a jump and link instruction, where the link register is x1:
+	 * 		JAL     x1, <imm>
+	 * 		JALR    x1, <rs1>, <imm>
+	 * 		C.JAL   <imm>
+	 * 		C.JALR  <rs1>
+	 * 
+	 * A return is an indirect jump instruction, where the register is x1 and the link
+	 * register x0:
+	 * 		JALR    x0, x1, <imm>
+	 * 		C.JR    x1
+	 * 
+	 * But this is not guaranteed, as these are not the only ways to translate call
+	 * and return operations. For example, identical behavior can be constructed with
+	 * conditional branches:
+	 * 		AUIPC   x1, 0
+	 * 		ADDI    x1, x1, 12
+	 * 		BEQ     x0, x0, <offset>
+	 * 
+	 * or by simply not following the standard calling convention and using another
+	 * register than x1 as the link register like so:
+	 * 		JALR    x10, x11, <imm>
+	 * Btw, the above example could also be an obfuscated return operation.
+	 */
+	else if (branch_type & BRANCH_DIRECT) {
 		tracer_write_start_trace_instrumentation(ctx, 148);
 
 		debug("[tracer] Instrument direct jumps\n");
@@ -392,21 +423,29 @@ int tracer_pre_inst_handler(mambo_context *ctx)
 		uint64_t offset;
 		enum reg rd;
 		unsigned int imm;
+		bool is_call = false;
 
 		if (mambo_get_inst_len(ctx) == INST_16BIT)  { //C.JAL, C.J
 			riscv_c_jal_decode_fields(ctx->code.read_address, &imm);
 			riscv_calc_cj_imm(imm, offset);
 			offset = sign_extend64(12, offset);
+			if (mambo_get_inst(ctx) == RISCV_C_JAL)
+				is_call = true;
 		} else { // JAL
 			riscv_jal_decode_fields(ctx->code.read_address, &rd, &imm);
 			riscv_calc_j_imm(imm, offset);
 			offset = sign_extend64(21, offset);
+			if (rd == x1)
+				is_call = true;
 		}
 
 		emit_set_reg_ptr(ctx, reg0, &entry_buffer_next);
 		emit_set_reg_ptr(ctx, reg1, ctx->code.read_address);
 		emit_set_reg(ctx, reg2, (uintptr_t)ctx->code.read_address + offset);
-		emit_set_reg(ctx, reg3, TraceEntryFlags_BranchTypeJump);
+		if (is_call)
+			emit_set_reg(ctx, reg3, TraceEntryFlags_BranchTypeCall);
+		else
+			emit_set_reg(ctx, reg3, TraceEntryFlags_BranchTypeJump);
 
 		/*
 		 * void tracer_entry_helper_jump(
@@ -427,10 +466,19 @@ int tracer_pre_inst_handler(mambo_context *ctx)
 		// Handle JALR, C.JALR and C.JR (and ret)
 		enum reg rd, rs1;
 		unsigned int imm;
+		bool is_call = false;
+		bool is_ret = false;
 
 		if (mambo_get_inst_len(ctx) == INST_16BIT) { // C.JALR, C.JR
 			riscv_c_jalr_decode_fields(ctx->code.read_address, &rs1);
 			emit_mov(ctx, reg2, rs1);
+
+			riscv_instruction inst = mambo_get_inst(ctx);
+			if (inst == RISCV_C_JR && rs1 == x1)
+				is_ret = true;
+			else if (inst == RISCV_C_JALR)
+				is_call = true;
+
 		} else { // JALR
 			uint64_t offset;
 
@@ -439,11 +487,21 @@ int tracer_pre_inst_handler(mambo_context *ctx)
 
 			emit_mov(ctx, reg2, rs1);
 			emit_add_sub_i(ctx, reg2, reg2, offset);
+
+			if (rd == x1)
+				is_call = true;
+			else if (rd == x0 && rs1 == x1)
+				is_ret = true;
 		}
 
 		emit_set_reg_ptr(ctx, reg0, &entry_buffer_next);
 		emit_set_reg_ptr(ctx, reg1, ctx->code.read_address);
-		emit_set_reg(ctx, reg3, TraceEntryFlags_BranchTypeJump);
+		if (is_call)
+			emit_set_reg(ctx, reg3, TraceEntryFlags_BranchTypeCall);
+		else if (is_ret)
+			emit_set_reg(ctx, reg3, TraceEntryFlags_BranchTypeReturn);
+		else
+			emit_set_reg(ctx, reg3, TraceEntryFlags_BranchTypeJump);
 
 		/*
 		 * void tracer_entry_helper_jump(
