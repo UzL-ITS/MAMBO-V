@@ -255,17 +255,38 @@ void parse_images_list(char *tokenstring)
 }
 
 /**
- * Parses passed image paths from argument list.
- * @param argv_index Index of argument
-*/
-void get_images_list(int argv_index) 
+ * Parses image paths from whitelist.txt.
+ */
+void get_images_list() 
 {
-	if (global_data.argc < 3) {
-		fprintf(stderr, "Warning: Empty image whitelist! You may have forgotten to pass the interesting image paths.\n");
+	FILE *fp_whitelist = fopen("whitelist.txt", "r");
+	if (fp_whitelist == NULL) {
+		fprintf(stderr, "Warning: whitelist.txt could not be accessed! Did you forget to add the file?\n");
+		interesting_images_count = -1;
 		return;
 	}
 
-	parse_images_list(global_data.argv[argv_index]);
+	for (size_t i = 0; i < MAX_INTERESTING_IMG_COUNT; i++) {
+		char image_path[MAX_INTERESTING_IMG_LENGTH];
+
+		while (fgets(image_path, MAX_INTERESTING_IMG_LENGTH, fp_whitelist)) {
+			if (interesting_images_count >= 10) {
+				fprintf(stderr, "Warning: There are more than 10 entries in your whitelist but "
+					"currently only a maximum of 10 is supported.\n");
+				break;
+			}
+
+			image_path[strcspn(image_path, "\n")] = 0;
+			if (strlen(image_path) == 0)
+				continue;
+
+			strcpy(interesting_images[interesting_images_count], image_path);
+			debug("[tracer] Image path added: %s\n", interesting_images[interesting_images_count]);
+			interesting_images_count++;
+		}
+	}
+
+	fclose(fp_whitelist);
 }
 
 int tracer_vm_op_handler(mambo_context *ctx)
@@ -277,7 +298,7 @@ int tracer_vm_op_handler(mambo_context *ctx)
 	}
 
 	if (interesting_images_count == 0)
-		get_images_list(2);
+		get_images_list();
 
 	if (mambo_get_vm_op(ctx) == VM_MAP) {
 		void *start_address;
