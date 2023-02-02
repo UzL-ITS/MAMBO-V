@@ -47,12 +47,23 @@ Also read the *Known issues* section below.
 Build
 -----
 
+__ARM:__
 Prerequisites: an ARM system (physical or virtual) to build and run MAMBO on; dependencies: gcc toolchain, libelf(-dev), ruby (>=1.9.1). Debian or Ubuntu users can install the required packages with `sudo apt-get install build-essential libelf-dev ruby`.
 
     git clone --recurse-submodules https://github.com/beehive-lab/mambo.git
     cd mambo
     make
 
+__RISC-V (cross compilation):__
+Prerequisites :
+
+- [GNU toolchain for RISC-V](https://github.com/riscv-collab/riscv-gnu-toolchain)
+- ruby (>=1.9.1)
+- Clone repo with `--recurse-submodules` flag
+```
+    cd mambo
+    CROSS_PREFIX=riscv64-unknown-linux-gnu- make
+```
 
 Usage
 -----
