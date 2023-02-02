@@ -347,13 +347,16 @@ int tracer_pre_inst_handler(mambo_context *ctx)
 {
 	// Abort instrumentation if source address is in an interesting image to save time
 	// (following MicroWalks procedure)
-	if (!is_intresting)
-		return 0;
+	//if (!is_intresting)
+	//	return 0;
 
 	mambo_branch_type branch_type = mambo_get_branch_type(ctx);
 
 	// Loads and Stores
 	if (branch_type == BRANCH_NONE && mambo_is_load_or_store(ctx)) {
+		if (!is_intresting)
+			return 0;
+
 		tracer_write_start_trace_instrumentation(ctx, 132);
 
 		debug("[tracer] Instrument load or store\n");
