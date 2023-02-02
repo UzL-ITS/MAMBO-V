@@ -82,7 +82,7 @@
 #define RAS_SIZE (4096*5)
 #define TBB_TARGET_REACHED_SIZE 30
 
-#define MAX_CC_LINKS 100000
+#define MAX_CC_LINKS 1000000
 
 #define THUMB 0x1
 #define FULLADDR 0x2
