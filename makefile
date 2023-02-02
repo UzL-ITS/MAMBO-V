@@ -8,7 +8,7 @@
 #PLUGINS+=plugins/strace.c
 #PLUGINS+=plugins/symbol_example.c
 #PLUGINS+=plugins/memcheck/memcheck.S plugins/memcheck/memcheck.c plugins/memcheck/naive_stdlib.c
-PLUGINS+=plugins/microwalk/tracer.c plugins/microwalk/trace_writer.cpp plugins/microwalk/trace_writer_wrapper.cpp
+#PLUGINS+=plugins/microwalk-tracer/tracer.c plugins/microwalk-tracer/trace_writer.cpp plugins/microwalk-tracer/trace_writer_wrapper.cpp
 
 OPTS= -DDBM_LINK_UNCOND_IMM
 OPTS+=-DDBM_INLINE_UNCOND_IMM
